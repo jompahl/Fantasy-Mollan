@@ -7,6 +7,7 @@ import { useTeamName } from "@/components/useTeamName";
 import TeamNameSetup from "@/components/TeamNameSetup";
 import Transfers from "@/components/Transfers";
 import Points from "@/components/Points";
+import League from "@/components/League";
 import SignInForm from "@/components/SignInForm";
 
 const TABS = ["My Team", "Points", "Transfers", "League"] as const;
@@ -76,6 +77,7 @@ export default function Home() {
           )}
           {activeTab === "Points" && <Points userEmail={session.user.email!} />}
           {activeTab === "Transfers" && <Transfers userEmail={session.user.email!} />}
+          {activeTab === "League" && <League />}
         </main>
       </div>
     );
