@@ -32,10 +32,26 @@ export async function GET() {
       if (line.split(",")[0].trim() === "Players") headerIndices.push(i);
     });
 
-    const gameweeks: Gameweek[] = headerIndices.map((start, idx) => {
+    const gameweeks: Gameweek[] = headerIndices.flatMap((start, idx) => {
       const end = idx + 1 < headerIndices.length ? headerIndices[idx + 1] : lines.length;
-      const players: PlayerPoints[] = [];
+      const headerCols = lines[start].split(",");
+      const calculatedColIndex = headerCols.findIndex(
+        (c) => c.trim().toLowerCase() === "calculated"
+      );
 
+      // Skip this gameweek if Calculated is not TRUE on the first player row
+      const firstDataLine = lines.slice(start + 1, end).find((l) => {
+        const name = l.split(",")[0].trim().replace(/^"|"$/g, "");
+        return name && /[a-zA-ZäöåÄÖÅ]/.test(name);
+      });
+      if (!firstDataLine) return [];
+      const firstCols = firstDataLine.split(",");
+      const calculated = calculatedColIndex >= 0
+        ? firstCols[calculatedColIndex]?.trim().toUpperCase()
+        : "";
+      if (calculated !== "TRUE") return [];
+
+      const players: PlayerPoints[] = [];
       for (const line of lines.slice(start + 1, end)) {
         const cols = line.split(",");
         const name = cols[0].trim().replace(/^"|"$/g, "");
@@ -48,7 +64,7 @@ export async function GET() {
         players.push({ name, goals, assists, points: goals * POINTS_PER_GOAL + assists * POINTS_PER_ASSIST });
       }
 
-      return { number: idx + 1, players };
+      return [{ number: idx + 1, players }];
     });
 
     return NextResponse.json({ gameweeks });
