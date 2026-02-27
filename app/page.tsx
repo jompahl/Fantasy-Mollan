@@ -9,8 +9,9 @@ import Transfers from "@/components/Transfers";
 import Points from "@/components/Points";
 import League from "@/components/League";
 import SignInForm from "@/components/SignInForm";
+import Games from "@/components/Games";
 
-const TABS = ["My Team", "Points", "Transfers", "League"] as const;
+const TABS = ["My Team", "Points", "Transfers", "League", "Games"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function Home() {
@@ -24,6 +25,11 @@ export default function Home() {
   }
 
   if (session) {
+    const userEmail = session.user?.email;
+    if (!userEmail) {
+      return <main className="min-h-screen bg-white" />;
+    }
+
     if (teamName === null) {
       return <main className="min-h-screen bg-white" />;
     }
@@ -121,9 +127,10 @@ export default function Home() {
           {activeTab === "My Team" && (
             <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
           )}
-          {activeTab === "Points" && <Points userEmail={session.user.email!} />}
-          {activeTab === "Transfers" && <Transfers userEmail={session.user.email!} />}
+          {activeTab === "Points" && <Points userEmail={userEmail} />}
+          {activeTab === "Transfers" && <Transfers userEmail={userEmail} />}
           {activeTab === "League" && <League />}
+          {activeTab === "Games" && <Games />}
         </main>
       </div>
     );

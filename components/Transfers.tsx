@@ -27,6 +27,10 @@ const SLOT_POSITION_LABEL: Record<string, string> = {
   DEF: "Defender",
 };
 
+function fantasyPosition(position: string): string {
+  return position === "GK" ? "DEF" : position;
+}
+
 const BUDGET_START = 50;
 
 interface Props {
@@ -197,12 +201,16 @@ export default function Transfers({ userEmail }: Props) {
   }
 
   const groups = POSITION_ORDER
-    .map((pos) => ({ pos, label: POSITION_LABELS[pos], players: players.filter((p) => p.position === pos) }))
+    .map((pos) => ({
+      pos,
+      label: POSITION_LABELS[pos],
+      players: players.filter((p) => fantasyPosition(p.position) === pos),
+    }))
     .filter((g) => g.players.length > 0);
 
   const eligiblePlayers = activeSlot !== null
     ? players.filter((p) => {
-        if (p.position !== SLOTS[activeSlot].label) return false;
+        if (fantasyPosition(p.position) !== SLOTS[activeSlot].label) return false;
         return !slotPlayers.some((sp, i) => i !== activeSlot && sp?.name === p.name);
       })
     : [];

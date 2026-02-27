@@ -8,8 +8,10 @@ const POINTS_PER_ASSIST = 3;
 
 export interface PlayerPoints {
   name: string;
+  position: string;
   goals: number;
   assists: number;
+  started: boolean;
   points: number;
 }
 
@@ -35,8 +37,15 @@ export async function GET() {
     const gameweeks: Gameweek[] = headerIndices.flatMap((start, idx) => {
       const end = idx + 1 < headerIndices.length ? headerIndices[idx + 1] : lines.length;
       const headerCols = lines[start].split(",");
+      const normalizedHeader = headerCols.map((c) => c.trim().toLowerCase());
       const calculatedColIndex = headerCols.findIndex(
         (c) => c.trim().toLowerCase() === "calculated"
+      );
+      const goalsColIndex = normalizedHeader.indexOf("goals");
+      const assistsColIndex = normalizedHeader.indexOf("assists");
+      const startedColIndex = normalizedHeader.indexOf("started");
+      const positionColIndex = normalizedHeader.findIndex(
+        (c) => c === "position" || c === "pos"
       );
 
       // Skip this gameweek if Calculated is not TRUE on the first player row
@@ -59,9 +68,13 @@ export async function GET() {
         // Skip summary/total rows (e.g. "990" minutes row — no letters in name)
         if (!/[a-zA-ZäöåÄÖÅ]/.test(name)) continue;
 
-        const goals = parseInt(cols[2]) || 0;
-        const assists = parseInt(cols[3]) || 0;
-        players.push({ name, goals, assists, points: goals * POINTS_PER_GOAL + assists * POINTS_PER_ASSIST });
+        const goals = parseInt(cols[goalsColIndex]) || 0;
+        const assists = parseInt(cols[assistsColIndex]) || 0;
+        const startedValue =
+          startedColIndex >= 0 ? cols[startedColIndex]?.trim().toUpperCase() : "";
+        const started = startedValue === "TRUE";
+        const position = positionColIndex >= 0 ? cols[positionColIndex]?.trim() ?? "" : "";
+        players.push({ name, position, goals, assists, started, points: goals * POINTS_PER_GOAL + assists * POINTS_PER_ASSIST });
       }
 
       return [{ number: idx + 1, players }];
