@@ -242,7 +242,11 @@ export default function Transfers({ userEmail }: Props) {
             Free transfers:{" "}
             {freeTransfers === null ? "…" : freeTransfers === Infinity ? "∞" : freeTransfers}
           </p>
-          <p className="text-sm font-medium text-gray-600 mb-2">Budget: £{budget.toFixed(1)}m</p>
+          <p className="text-sm font-medium text-gray-600 mb-0.5">Budget: £{budget.toFixed(1)}m</p>
+          {budget < 0 && (
+            <p className="text-xs text-red-500 mb-2">You have insufficient funds</p>
+          )}
+          {budget >= 0 && <div className="mb-2" />}
           <Pitch onSlotClick={openSlot} slotPlayers={slotPlayers.map((p) => p?.name ?? null)} />
           <button
             onClick={saveTeam}

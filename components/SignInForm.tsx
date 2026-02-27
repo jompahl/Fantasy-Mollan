@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import Image from "next/image";
 
 type Mode = "signin" | "register";
 
@@ -56,6 +57,9 @@ export default function SignInForm() {
     <main className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
+          <div className="w-24 h-24 relative mx-auto mb-4">
+            <Image src="/fc-mollan-logo.svg" alt="FC Möllan" fill className="object-contain" priority />
+          </div>
           <h1 className="text-2xl font-semibold text-gray-900">Fantasy Möllan</h1>
           <p className="text-sm text-gray-400 mt-1">
             {mode === "signin" ? "Sign in to your account" : "Create a new account"}
