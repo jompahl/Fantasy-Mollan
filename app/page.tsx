@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useTeamName } from "@/components/useTeamName";
 import TeamNameSetup from "@/components/TeamNameSetup";
 import Transfers from "@/components/Transfers";
+import Points from "@/components/Points";
 
 const TABS = ["My Team", "Points", "Transfers", "League"] as const;
 type Tab = (typeof TABS)[number];
@@ -72,6 +73,7 @@ export default function Home() {
           {activeTab === "My Team" && (
             <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
           )}
+          {activeTab === "Points" && <Points userEmail={session.user.email!} />}
           {activeTab === "Transfers" && <Transfers userEmail={session.user.email!} />}
         </main>
       </div>

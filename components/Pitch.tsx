@@ -15,11 +15,12 @@ function JerseyIcon({ filled }: { filled: boolean }) {
 }
 
 interface Props {
-  onSlotClick: (index: number) => void;
+  onSlotClick?: (index: number) => void;
   slotPlayers?: (string | null)[];
+  slotPoints?: (number | null)[];
 }
 
-export default function Pitch({ onSlotClick, slotPlayers = [] }: Props) {
+export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [] }: Props) {
   return (
     <div>
       <div
@@ -50,11 +51,13 @@ export default function Pitch({ onSlotClick, slotPlayers = [] }: Props) {
         {SLOTS.map((slot, i) => {
           const playerName = slotPlayers[i] ?? null;
           const filled = playerName !== null;
+          const points = slotPoints[i] ?? null;
           return (
             <button
               key={i}
-              onClick={() => onSlotClick(i)}
-              className="absolute flex flex-col items-center gap-1 hover:opacity-80 transition-opacity"
+              onClick={() => onSlotClick?.(i)}
+              disabled={!onSlotClick}
+              className="absolute flex flex-col items-center gap-1 transition-opacity disabled:cursor-default enabled:hover:opacity-80"
               style={{ left: slot.x, top: slot.y, transform: "translate(-50%, -50%)" }}
             >
               <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${filled ? "bg-white/20 border border-white/40" : "bg-white/10 border border-dashed border-white/30"}`}>
@@ -62,9 +65,14 @@ export default function Pitch({ onSlotClick, slotPlayers = [] }: Props) {
               </div>
               <div className="bg-black/30 rounded px-2 py-0.5 max-w-[72px]">
                 <span className="text-white text-xs font-semibold tracking-wide truncate block text-center" style={{ opacity: filled ? 1 : 0.5 }}>
-                  {filled ? playerName!.split(" ").pop() : slot.label}
+                  {filled ? playerName : slot.label}
                 </span>
               </div>
+              {filled && points !== null && points > 0 && (
+                <div className="bg-yellow-400 rounded px-1.5 py-0.5">
+                  <span className="text-yellow-900 text-xs font-bold">{points} pts</span>
+                </div>
+              )}
             </button>
           );
         })}
