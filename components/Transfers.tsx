@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Player } from "@/app/api/players/route";
 import Pitch, { SLOTS } from "@/components/Pitch";
+import { supabase } from "@/lib/supabase";
 
 const POSITION_STYLES: Record<string, string> = {
   GK:  "bg-yellow-100 text-yellow-800",
@@ -28,14 +29,21 @@ const SLOT_POSITION_LABEL: Record<string, string> = {
 
 const BUDGET_START = 50;
 
-export default function Transfers() {
+interface Props {
+  userEmail: string;
+}
+
+export default function Transfers({ userEmail }: Props) {
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [error, setError] = useState(false);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [slotPlayers, setSlotPlayers] = useState<(Player | null)[]>(Array(5).fill(null));
-  const [budget, setBudget] = useState(BUDGET_START);
+  const [slotsLoaded, setSlotsLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
+  // Load players from sheet
   useEffect(() => {
     fetch("/api/players")
       .then((r) => r.json())
@@ -45,6 +53,36 @@ export default function Transfers() {
       })
       .catch(() => setError(true));
   }, []);
+
+  // Load saved slot selections from Supabase
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("team_slots")
+        .select("slot_index, player_name, player_position, player_price")
+        .eq("user_email", userEmail);
+
+      if (data && data.length > 0) {
+        setSlotPlayers((prev) => {
+          const next = [...prev];
+          for (const row of data) {
+            next[row.slot_index] = {
+              name: row.player_name,
+              position: row.player_position,
+              price: row.player_price,
+            };
+          }
+          return next;
+        });
+      }
+      setSlotsLoaded(true);
+    })();
+  }, [userEmail]);
+
+  const budget = slotPlayers.reduce(
+    (remaining, p) => Math.round((remaining - (p?.price ?? 0)) * 10) / 10,
+    BUDGET_START
+  );
 
   function openSlot(index: number) {
     setActiveSlot(index);
@@ -58,23 +96,34 @@ export default function Transfers() {
 
   function selectPlayer(player: Player) {
     if (activeSlot === null) return;
-    const prev = slotPlayers[activeSlot];
-    const refund = prev ? prev.price : 0;
-    setBudget((b) => Math.round((b - player.price + refund) * 10) / 10);
     setSlotPlayers((prev) => {
       const next = [...prev];
       next[activeSlot] = player;
       return next;
     });
+    setSaved(false);
     closeModal();
+  }
+
+  async function saveTeam() {
+    setSaving(true);
+    const rows = slotPlayers
+      .map((p, i) => p ? { user_email: userEmail, slot_index: i, player_name: p.name, player_position: p.position, player_price: p.price } : null)
+      .filter(Boolean);
+
+    await supabase.from("team_slots").delete().eq("user_email", userEmail);
+    if (rows.length > 0) await supabase.from("team_slots").insert(rows);
+
+    setSaving(false);
+    setSaved(true);
   }
 
   if (error) {
     return <p className="text-red-500 text-sm">Could not load players. Try refreshing.</p>;
   }
 
-  if (!players) {
-    return <p className="text-gray-400 text-sm">Loading players…</p>;
+  if (!players || !slotsLoaded) {
+    return <p className="text-gray-400 text-sm">Loading…</p>;
   }
 
   const groups = POSITION_ORDER
@@ -82,7 +131,10 @@ export default function Transfers() {
     .filter((g) => g.players.length > 0);
 
   const eligiblePlayers = activeSlot !== null
-    ? players.filter((p) => p.position === SLOTS[activeSlot].label)
+    ? players.filter((p) => {
+        if (p.position !== SLOTS[activeSlot].label) return false;
+        return !slotPlayers.some((sp, i) => i !== activeSlot && sp?.name === p.name);
+      })
     : [];
 
   return (
@@ -118,6 +170,13 @@ export default function Transfers() {
         <div className="w-full md:w-60 md:flex-shrink-0 md:sticky md:top-8 order-first md:order-last">
           <p className="text-sm font-medium text-gray-600 mb-2">Budget: £{budget.toFixed(1)}m</p>
           <Pitch onSlotClick={openSlot} slotPlayers={slotPlayers.map((p) => p?.name ?? null)} />
+          <button
+            onClick={saveTeam}
+            disabled={budget < 0 || saving}
+            className="mt-3 w-full py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-700 disabled:hover:bg-gray-900"
+          >
+            {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
+          </button>
         </div>
       </div>
 
@@ -131,7 +190,6 @@ export default function Transfers() {
             className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
               {selecting && (
                 <button
@@ -153,7 +211,6 @@ export default function Transfers() {
             </div>
 
             {selecting ? (
-              /* Player picker */
               <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
                 {eligiblePlayers.map((player) => (
                   <li key={player.name}>
@@ -171,7 +228,6 @@ export default function Transfers() {
                 ))}
               </ul>
             ) : (
-              /* Slot info */
               <div className="px-6 py-5">
                 {slotPlayers[activeSlot] ? (
                   <div className="mb-5">

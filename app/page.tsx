@@ -72,7 +72,7 @@ export default function Home() {
           {activeTab === "My Team" && (
             <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
           )}
-          {activeTab === "Transfers" && <Transfers />}
+          {activeTab === "Transfers" && <Transfers userEmail={session.user.email!} />}
         </main>
       </div>
     );
