@@ -39,42 +39,56 @@ export default function Transfers({ userEmail }: Props) {
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [slotPlayers, setSlotPlayers] = useState<(Player | null)[]>(Array(5).fill(null));
+  const [savedSlotPlayers, setSavedSlotPlayers] = useState<(Player | null)[]>(Array(5).fill(null));
   const [slotsLoaded, setSlotsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [calculatedGwCount, setCalculatedGwCount] = useState<number | null>(null);
+  const [transfersUsed, setTransfersUsed] = useState(0);
 
-  // Load players from sheet
+  // Load players from sheet + number of calculated gameweeks
   useEffect(() => {
-    fetch("/api/players")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error();
-        setPlayers(data.players);
+    Promise.all([
+      fetch("/api/players").then((r) => r.json()),
+      fetch("/api/gameweek").then((r) => r.json()),
+    ])
+      .then(([playerData, gwData]) => {
+        if (playerData.error) throw new Error();
+        setPlayers(playerData.players);
+        setCalculatedGwCount(gwData.gameweeks?.length ?? 0);
       })
       .catch(() => setError(true));
   }, []);
 
-  // Load saved slot selections from Supabase
+  // Load saved slot selections and transfers_used from Supabase
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("team_slots")
-        .select("slot_index, player_name, player_position, player_price")
-        .eq("user_email", userEmail);
+      const [{ data: slotData }, { data: teamData }] = await Promise.all([
+        supabase
+          .from("team_slots")
+          .select("slot_index, player_name, player_position, player_price")
+          .eq("user_email", userEmail),
+        supabase
+          .from("user_teams")
+          .select("transfers_used")
+          .eq("user_email", userEmail)
+          .single(),
+      ]);
 
-      if (data && data.length > 0) {
-        setSlotPlayers((prev) => {
-          const next = [...prev];
-          for (const row of data) {
-            next[row.slot_index] = {
-              name: row.player_name,
-              position: row.player_position,
-              price: row.player_price,
-            };
-          }
-          return next;
-        });
+      if (slotData && slotData.length > 0) {
+        const loaded: (Player | null)[] = Array(5).fill(null);
+        for (const row of slotData) {
+          loaded[row.slot_index] = {
+            name: row.player_name,
+            position: row.player_position,
+            price: row.player_price,
+          };
+        }
+        setSlotPlayers(loaded);
+        setSavedSlotPlayers(loaded);
       }
+
+      setTransfersUsed(teamData?.transfers_used ?? 0);
       setSlotsLoaded(true);
     })();
   }, [userEmail]);
@@ -83,6 +97,12 @@ export default function Transfers({ userEmail }: Props) {
     (remaining, p) => Math.round((remaining - (p?.price ?? 0)) * 10) / 10,
     BUDGET_START
   );
+
+  // null = still loading, Infinity = no gameweeks yet (unlimited), number = count
+  const freeTransfers: number | null =
+    calculatedGwCount === null ? null
+    : calculatedGwCount === 0 ? Infinity
+    : Math.max(0, calculatedGwCount - transfersUsed);
 
   function openSlot(index: number) {
     setActiveSlot(index);
@@ -114,6 +134,20 @@ export default function Transfers({ userEmail }: Props) {
     await supabase.from("team_slots").delete().eq("user_email", userEmail);
     if (rows.length > 0) await supabase.from("team_slots").insert(rows);
 
+    // Count changed slots and record transfers used (only after first gameweek)
+    if (calculatedGwCount && calculatedGwCount > 0) {
+      const changes = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
+      if (changes > 0) {
+        const newTotal = transfersUsed + changes;
+        await supabase
+          .from("user_teams")
+          .update({ transfers_used: newTotal })
+          .eq("user_email", userEmail);
+        setTransfersUsed(newTotal);
+      }
+    }
+
+    setSavedSlotPlayers([...slotPlayers]);
     setSaving(false);
     setSaved(true);
   }
@@ -168,15 +202,24 @@ export default function Transfers({ userEmail }: Props) {
 
         {/* Pitch */}
         <div className="w-full md:w-60 md:flex-shrink-0 md:sticky md:top-8 order-first md:order-last">
+          <p className="text-sm font-medium text-gray-600 mb-0.5">
+            Free transfers:{" "}
+            {freeTransfers === null ? "…" : freeTransfers === Infinity ? "∞" : freeTransfers}
+          </p>
           <p className="text-sm font-medium text-gray-600 mb-2">Budget: £{budget.toFixed(1)}m</p>
           <Pitch onSlotClick={openSlot} slotPlayers={slotPlayers.map((p) => p?.name ?? null)} />
           <button
             onClick={saveTeam}
-            disabled={budget < 0 || saving}
+            disabled={budget < 0 || saving || freeTransfers === 0}
             className="mt-3 w-full py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-700 disabled:hover:bg-gray-900"
           >
             {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
           </button>
+          {freeTransfers === 0 && (
+            <p className="mt-2 text-xs text-red-500 text-center">
+              You don&apos;t have any transfers left, wait until the next gameweek
+            </p>
+          )}
         </div>
       </div>
 
