@@ -127,6 +127,42 @@ export default function Transfers({ userEmail }: Props) {
 
   async function saveTeam() {
     setSaving(true);
+
+    // Snapshot the current saved team for any calculated GWs that don't have one yet
+    if (calculatedGwCount && calculatedGwCount > 0) {
+      const { data: existingSnapshots } = await supabase
+        .from("gameweek_snapshots")
+        .select("gameweek_number")
+        .eq("user_email", userEmail);
+
+      const alreadySnapshotted = new Set(
+        (existingSnapshots ?? []).map((s: { gameweek_number: number }) => s.gameweek_number)
+      );
+
+      const snapshotRows = [];
+      for (let gw = 1; gw <= calculatedGwCount; gw++) {
+        if (!alreadySnapshotted.has(gw)) {
+          for (let i = 0; i < savedSlotPlayers.length; i++) {
+            const p = savedSlotPlayers[i];
+            if (p) {
+              snapshotRows.push({
+                user_email: userEmail,
+                gameweek_number: gw,
+                slot_index: i,
+                player_name: p.name,
+                player_position: p.position,
+                player_price: p.price,
+              });
+            }
+          }
+        }
+      }
+
+      if (snapshotRows.length > 0) {
+        await supabase.from("gameweek_snapshots").insert(snapshotRows);
+      }
+    }
+
     const rows = slotPlayers
       .map((p, i) => p ? { user_email: userEmail, slot_index: i, player_name: p.name, player_position: p.position, player_price: p.price } : null)
       .filter(Boolean);

@@ -16,7 +16,8 @@ interface Props {
 }
 
 export default function Points({ userEmail }: Props) {
-  const [slotPlayers, setSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
+  const [currentSlotPlayers, setCurrentSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
+  const [snapshots, setSnapshots] = useState<Map<number, (SlotPlayer | null)[]>>(new Map());
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [currentGwIndex, setCurrentGwIndex] = useState<number>(0);
   const [loaded, setLoaded] = useState(false);
@@ -27,24 +28,44 @@ export default function Points({ userEmail }: Props) {
         .from("team_slots")
         .select("slot_index, player_name, player_position, player_price")
         .eq("user_email", userEmail),
+      supabase
+        .from("gameweek_snapshots")
+        .select("gameweek_number, slot_index, player_name, player_position, player_price")
+        .eq("user_email", userEmail),
       fetch("/api/gameweek").then((r) => r.json()),
-    ]).then(([{ data }, gwData]) => {
-      if (data && data.length > 0) {
-        setSlotPlayers((prev) => {
-          const next = [...prev];
-          for (const row of data) {
-            next[row.slot_index] = {
-              name: row.player_name,
-              position: row.player_position,
-              price: row.player_price,
-            };
-          }
-          return next;
-        });
+    ]).then(([{ data: slotData }, { data: snapshotData }, gwData]) => {
+      // Current team (fallback when no snapshot exists)
+      if (slotData && slotData.length > 0) {
+        const current: (SlotPlayer | null)[] = Array(5).fill(null);
+        for (const row of slotData) {
+          current[row.slot_index] = {
+            name: row.player_name,
+            position: row.player_position,
+            price: row.player_price,
+          };
+        }
+        setCurrentSlotPlayers(current);
       }
+
+      // Build snapshot map: gameweek_number → slot array
+      if (snapshotData && snapshotData.length > 0) {
+        const map = new Map<number, (SlotPlayer | null)[]>();
+        for (const row of snapshotData) {
+          if (!map.has(row.gameweek_number)) {
+            map.set(row.gameweek_number, Array(5).fill(null));
+          }
+          map.get(row.gameweek_number)![row.slot_index] = {
+            name: row.player_name,
+            position: row.player_position,
+            price: row.player_price,
+          };
+        }
+        setSnapshots(map);
+      }
+
       if (!gwData.error && gwData.gameweeks?.length > 0) {
         setGameweeks(gwData.gameweeks);
-        setCurrentGwIndex(gwData.gameweeks.length - 1); // default to latest gameweek
+        setCurrentGwIndex(gwData.gameweeks.length - 1);
       }
       setLoaded(true);
     });
@@ -55,6 +76,12 @@ export default function Points({ userEmail }: Props) {
   }
 
   const currentGameweek = gameweeks[currentGwIndex];
+
+  // Use snapshot for this gameweek if available, otherwise fall back to current team
+  const slotPlayers = currentGameweek
+    ? (snapshots.get(currentGameweek.number) ?? currentSlotPlayers)
+    : currentSlotPlayers;
+
   const gameweekStats: PlayerPoints[] = currentGameweek?.players ?? [];
 
   const slotPoints = slotPlayers.map((p) => {
