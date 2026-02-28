@@ -50,6 +50,7 @@ export default function Transfers({ userEmail }: Props) {
   const [calculatedGwCount, setCalculatedGwCount] = useState<number | null>(null);
   const [transfersUsed, setTransfersUsed] = useState(0);
   const [pointsDeducted, setPointsDeducted] = useState(0);
+  const [captainName, setCaptainName] = useState<string | null>(null);
 
   // Load players from sheet + number of calculated gameweeks
   useEffect(() => {
@@ -75,7 +76,7 @@ export default function Transfers({ userEmail }: Props) {
           .eq("user_email", userEmail),
         supabase
           .from("user_teams")
-          .select("transfers_used, points_deducted")
+          .select("transfers_used, points_deducted, captain_name")
           .eq("user_email", userEmail)
           .single(),
       ]);
@@ -95,6 +96,7 @@ export default function Transfers({ userEmail }: Props) {
 
       setTransfersUsed(teamData?.transfers_used ?? 0);
       setPointsDeducted(teamData?.points_deducted ?? 0);
+      setCaptainName(teamData?.captain_name ?? null);
       setSlotsLoaded(true);
     })();
   }, [userEmail]);
@@ -167,6 +169,7 @@ export default function Transfers({ userEmail }: Props) {
                 player_name: p.name,
                 player_position: p.position,
                 player_price: p.price,
+                is_captain: captainName ? p.name === captainName : false,
               });
             }
           }

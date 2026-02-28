@@ -11,6 +11,7 @@ interface PositionedPlayer {
   y: string;
   points: number;
   goals: number;
+  assists: number;
   image: string;
   imageRotation: number;
   hasCustomImage: boolean;
@@ -30,6 +31,18 @@ type PlayerWithImage = PlayerPoints & {
   imageRotation: number;
   hasCustomImage: boolean;
 };
+
+function BootIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+      <path d="M2 15.5V18h20v-2.5c-4.6 0-7-1.4-8.8-3.2l-1.4-1.5-2 2.1C8.1 14.6 5.9 15.5 2 15.5Z" fill="#111827" />
+      <rect x="4" y="18.5" width="2.1" height="1.6" rx="0.4" fill="#111827" />
+      <rect x="8" y="18.5" width="2.1" height="1.6" rx="0.4" fill="#111827" />
+      <rect x="12" y="18.5" width="2.1" height="1.6" rx="0.4" fill="#111827" />
+      <path d="M14.2 8.8c.9 1.3 2.3 2.6 4.7 3.1" stroke="#374151" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function buildPositions(players: PlayerWithImage[]): PositionedPlayer[] {
   const withRole = players.map((p) => ({ ...p, role: normalizePosition(p.position) }));
@@ -53,6 +66,7 @@ function buildPositions(players: PlayerWithImage[]): PositionedPlayer[] {
       y: row.y,
       points: player.points,
       goals: player.goals,
+      assists: player.assists,
       image: player.image,
       imageRotation: player.imageRotation,
       hasCustomImage: player.hasCustomImage,
@@ -201,7 +215,7 @@ export default function Games() {
               onClick={() => setSelectedPlayerName(player.name)}
               className="relative w-10 h-10"
             >
-              <div className="w-10 h-10 rounded-full overflow-hidden border border-white/60 bg-white/20">
+              <div className="w-10 h-10 rounded-full overflow-hidden">
                 <Image
                   src={player.image}
                   alt={player.name}
@@ -215,6 +229,11 @@ export default function Games() {
                   unoptimized
                 />
               </div>
+              {player.assists > 0 && (
+                <span className="absolute -top-1.5 -left-1.5 leading-none bg-white/90 rounded-full p-[1px] shadow-sm">
+                  <BootIcon />
+                </span>
+              )}
               {player.goals > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 text-sm leading-none">⚽</span>
               )}
@@ -246,7 +265,7 @@ export default function Games() {
                   <button
                     type="button"
                     onClick={() => setSelectedPlayerName(player.name)}
-                    className="w-8 h-8 rounded-full overflow-hidden border border-gray-300 bg-white"
+                    className="w-8 h-8 rounded-full overflow-hidden"
                   >
                     <Image
                       src={player.image}

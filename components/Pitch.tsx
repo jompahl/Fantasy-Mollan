@@ -14,15 +14,37 @@ function JerseyIcon({ filled }: { filled: boolean }) {
   );
 }
 
+function BootIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+      <path d="M2 15.5V18h20v-2.5c-4.6 0-7-1.4-8.8-3.2l-1.4-1.5-2 2.1C8.1 14.6 5.9 15.5 2 15.5Z" fill="#111827" />
+      <rect x="4" y="18.5" width="2.1" height="1.6" rx="0.4" fill="#111827" />
+      <rect x="8" y="18.5" width="2.1" height="1.6" rx="0.4" fill="#111827" />
+      <rect x="12" y="18.5" width="2.1" height="1.6" rx="0.4" fill="#111827" />
+      <path d="M14.2 8.8c.9 1.3 2.3 2.6 4.7 3.1" stroke="#374151" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 interface Props {
   onSlotClick?: (index: number) => void;
   slotPlayers?: (string | null)[];
   slotPoints?: (number | null)[];
   slotPrices?: (number | null)[];
   slotGoals?: (number | null)[];
+  slotAssists?: (number | null)[];
+  slotCaptains?: (boolean | null)[];
 }
 
-export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], slotPrices = [], slotGoals = [] }: Props) {
+export default function Pitch({
+  onSlotClick,
+  slotPlayers = [],
+  slotPoints = [],
+  slotPrices = [],
+  slotGoals = [],
+  slotAssists = [],
+  slotCaptains = [],
+}: Props) {
   return (
     <div>
       <div
@@ -56,6 +78,8 @@ export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], 
           const points = slotPoints[i] ?? null;
           const price = slotPrices[i] ?? null;
           const goals = slotGoals[i] ?? 0;
+          const assists = slotAssists[i] ?? 0;
+          const isCaptain = slotCaptains[i] ?? false;
           return (
             <button
               key={i}
@@ -66,6 +90,16 @@ export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], 
             >
               <div className={`relative w-14 h-14 rounded-xl flex items-center justify-center ${filled ? "bg-white/20 border border-white/40" : "bg-white/10 border border-dashed border-white/30"}`}>
                 <JerseyIcon filled={filled} />
+                {filled && assists > 0 && (
+                  <span className="absolute -top-1.5 -left-1.5 leading-none bg-white/90 rounded-full p-[1px] shadow-sm">
+                    <BootIcon />
+                  </span>
+                )}
+                {filled && isCaptain && (
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-yellow-900 bg-yellow-300 rounded-full px-1 py-0.5 leading-none shadow-sm">
+                    C
+                  </span>
+                )}
                 {filled && goals > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 text-sm leading-none">⚽</span>
                 )}
