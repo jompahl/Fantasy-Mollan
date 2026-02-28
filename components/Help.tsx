@@ -2,7 +2,7 @@
 
 const RULES = [
   "For playing up to 45 minutes = 1 point",
-  "For playing 45 minutes or more = 1 point",
+  "For playing 45 minutes or more = 2 points",
   "For each goal scored by a defender = 6 points",
   "For each goal scored by a midfielder = 5 points",
   "For each goal scored by a forward = 4 points",

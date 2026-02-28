@@ -7,6 +7,8 @@ export interface Player {
   name: string;
   position: string;
   price: number;
+  image?: string;
+  imageRotation?: number;
 }
 
 export async function GET() {
@@ -32,6 +34,10 @@ export async function GET() {
     const playerCol = header.indexOf("player");
     const positionCol = header.indexOf("position");
     const priceCol = header.indexOf("price");
+    const imageCol = header.indexOf("image");
+    const imageRotationCol = header.findIndex(
+      (h) => h === "image rotation" || h === "image_rotation" || h === "rotation"
+    );
 
     const players: Player[] = [];
 
@@ -44,6 +50,11 @@ export async function GET() {
         name,
         position: cols[positionCol]?.trim() ?? "",
         price: parseFloat(cols[priceCol]?.trim() ?? "0") || 0,
+        image: imageCol >= 0 ? cols[imageCol]?.trim().replace(/^"|"$/g, "") || undefined : undefined,
+        imageRotation:
+          imageRotationCol >= 0
+            ? (Number.parseFloat(cols[imageRotationCol]?.trim() ?? "0") || 0)
+            : 0,
       });
     }
 

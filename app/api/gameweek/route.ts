@@ -5,7 +5,7 @@ const GAMEWEEK_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/exp
 const PLAYERS_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
 
 const APPEARANCE_POINTS_UNDER_45 = 1;
-const APPEARANCE_POINTS_45_OR_MORE = 1;
+const APPEARANCE_POINTS_45_OR_MORE = 2;
 const GOAL_POINTS = {
   DEF: 6,
   MID: 5,

@@ -10,6 +10,10 @@ interface PositionedPlayer {
   x: string;
   y: string;
   points: number;
+  goals: number;
+  image: string;
+  imageRotation: number;
+  hasCustomImage: boolean;
 }
 
 function normalizePosition(position: string): "DEF" | "MID" | "FWD" | "GK" | "UNKNOWN" {
@@ -21,9 +25,15 @@ function normalizePosition(position: string): "DEF" | "MID" | "FWD" | "GK" | "UN
   return "UNKNOWN";
 }
 
-function buildPositions(players: PlayerPoints[]): PositionedPlayer[] {
+type PlayerWithImage = PlayerPoints & {
+  image: string;
+  imageRotation: number;
+  hasCustomImage: boolean;
+};
+
+function buildPositions(players: PlayerWithImage[]): PositionedPlayer[] {
   const withRole = players.map((p) => ({ ...p, role: normalizePosition(p.position) }));
-  const rows: { y: string; players: PlayerPoints[] }[] = [
+  const rows: { y: string; players: PlayerWithImage[] }[] = [
     { y: "16%", players: withRole.filter((p) => p.role === "FWD") },
     { y: "41%", players: withRole.filter((p) => p.role === "MID") },
     { y: "66%", players: withRole.filter((p) => p.role === "DEF") },
@@ -42,6 +52,10 @@ function buildPositions(players: PlayerPoints[]): PositionedPlayer[] {
       x: `${((i + 1) * 100) / (row.players.length + 1)}%`,
       y: row.y,
       points: player.points,
+      goals: player.goals,
+      image: player.image,
+      imageRotation: player.imageRotation,
+      hasCustomImage: player.hasCustomImage,
     }))
   );
 }
@@ -49,6 +63,9 @@ function buildPositions(players: PlayerPoints[]): PositionedPlayer[] {
 export default function Games() {
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [playerPositions, setPlayerPositions] = useState<Map<string, string>>(new Map());
+  const [playerImages, setPlayerImages] = useState<Map<string, string>>(new Map());
+  const [playerImageRotations, setPlayerImageRotations] = useState<Map<string, number>>(new Map());
+  const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null);
   const [currentGwIndex, setCurrentGwIndex] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -62,11 +79,20 @@ export default function Games() {
         const players = playersData.players ?? [];
 
         const positionMap = new Map<string, string>();
+        const imageMap = new Map<string, string>();
+        const imageRotationMap = new Map<string, number>();
         for (const player of players) {
-          positionMap.set(player.name.trim().toLowerCase(), player.position);
+          const normalizedName = player.name.trim().toLowerCase();
+          positionMap.set(normalizedName, player.position);
+          if (player.image) imageMap.set(normalizedName, player.image);
+          if (typeof player.imageRotation === "number") {
+            imageRotationMap.set(normalizedName, player.imageRotation);
+          }
         }
 
         setPlayerPositions(positionMap);
+        setPlayerImages(imageMap);
+        setPlayerImageRotations(imageRotationMap);
         setGameweeks(calculatedGameweeks);
         setCurrentGwIndex(Math.max(0, calculatedGameweeks.length - 1));
         setLoaded(true);
@@ -74,6 +100,8 @@ export default function Games() {
       .catch(() => {
         setGameweeks([]);
         setPlayerPositions(new Map());
+        setPlayerImages(new Map());
+        setPlayerImageRotations(new Map());
         setCurrentGwIndex(0);
         setLoaded(true);
       });
@@ -93,14 +121,27 @@ export default function Games() {
     .map((p) => ({
       ...p,
       position: playerPositions.get(p.name.trim().toLowerCase()) ?? p.position,
+      image: playerImages.get(p.name.trim().toLowerCase()) ?? "/avatar.webp",
+      imageRotation: playerImageRotations.get(p.name.trim().toLowerCase()) ?? 0,
+      hasCustomImage: playerImages.has(p.name.trim().toLowerCase()),
     }));
   const benchPlayers = currentGameweek.players
     .filter((p) => !p.started)
     .map((p) => ({
       ...p,
       position: playerPositions.get(p.name.trim().toLowerCase()) ?? p.position,
+      image: playerImages.get(p.name.trim().toLowerCase()) ?? "/avatar.webp",
+      imageRotation: playerImageRotations.get(p.name.trim().toLowerCase()) ?? 0,
+      hasCustomImage: playerImages.has(p.name.trim().toLowerCase()),
     }));
   const positioned = buildPositions(startedPlayers);
+  const allPlayers = [...startedPlayers, ...benchPlayers];
+  const selectedPlayerStat = selectedPlayerName
+    ? currentGameweek.players.find((p) => p.name === selectedPlayerName)
+    : null;
+  const selectedPlayerWithImage = selectedPlayerName
+    ? allPlayers.find((p) => p.name === selectedPlayerName)
+    : null;
 
   return (
     <div className="w-full md:w-[34rem]">
@@ -155,15 +196,29 @@ export default function Games() {
             className="absolute flex flex-col items-center"
             style={{ left: player.x, top: player.y, transform: "translate(-50%, -50%)" }}
           >
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-white/60 bg-white/20">
-              <Image
-                src="/avatar.webp"
-                alt={player.name}
-                width={40}
-                height={40}
-                className="w-full h-full object-cover"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedPlayerName(player.name)}
+              className="relative w-10 h-10"
+            >
+              <div className="w-10 h-10 rounded-full overflow-hidden border border-white/60 bg-white/20">
+                <Image
+                  src={player.image}
+                  alt={player.name}
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                  style={{
+                    objectPosition: "center 22%",
+                    transform: `scale(1.18) rotate(${player.imageRotation}deg)`,
+                  }}
+                  unoptimized
+                />
+              </div>
+              {player.goals > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 text-sm leading-none">⚽</span>
+              )}
+            </button>
             <div className="mt-1 bg-black/35 rounded px-2 py-0.5 max-w-[120px]">
               <span className="text-white text-xs font-semibold truncate block text-center">
                 {player.name}
@@ -188,15 +243,24 @@ export default function Games() {
             <div className="flex items-start justify-between gap-1.5 flex-nowrap">
               {benchPlayers.map((player) => (
                 <div key={player.name} className="flex flex-col items-center w-14 min-w-0">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-300 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlayerName(player.name)}
+                    className="w-8 h-8 rounded-full overflow-hidden border border-gray-300 bg-white"
+                  >
                     <Image
-                      src="/avatar.webp"
+                      src={player.image}
                       alt={player.name}
                       width={32}
                       height={32}
                       className="w-full h-full object-cover"
+                      style={{
+                        objectPosition: "center 22%",
+                        transform: `scale(1.18) rotate(${player.imageRotation}deg)`,
+                      }}
+                      unoptimized
                     />
-                  </div>
+                  </button>
                   <div className="mt-1 bg-black/35 rounded px-1.5 py-0.5 w-full">
                     <span className="text-white text-[10px] font-semibold truncate block text-center">
                       {player.name}
@@ -209,6 +273,87 @@ export default function Games() {
           )}
         </div>
       </div>
+
+      {selectedPlayerName && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setSelectedPlayerName(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-end">
+              <button
+                onClick={() => setSelectedPlayerName(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              {!selectedPlayerStat ? (
+                <p className="text-sm text-gray-500">No game data found for this player in this gameweek.</p>
+              ) : (
+                <>
+                  <div className="rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 mb-4">
+                    <div className="px-4 py-3 flex items-center gap-3">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 bg-white flex-shrink-0">
+                        <Image
+                          src={selectedPlayerWithImage?.hasCustomImage ? selectedPlayerWithImage.image : "/avatar.webp"}
+                          alt={selectedPlayerName}
+                          width={80}
+                          height={80}
+                          className="w-full h-full object-cover"
+                          style={
+                            selectedPlayerWithImage?.hasCustomImage
+                              ? {
+                                  objectPosition: "center 22%",
+                                  transform: `scale(1.18) rotate(${selectedPlayerWithImage.imageRotation}deg)`,
+                                }
+                              : undefined
+                          }
+                          unoptimized
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          {selectedPlayerStat.position || "Player"}
+                        </p>
+                        <p className="text-gray-900 text-3xl font-bold leading-tight">
+                          {selectedPlayerName}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700 mb-3">
+                    Total: {selectedPlayerStat.points} pts
+                  </p>
+                  {selectedPlayerStat.breakdown.length > 0 ? (
+                    <ul className="space-y-2">
+                      {selectedPlayerStat.breakdown.map((item, i) => (
+                        <li key={`${item.label}-${i}`} className="flex items-center justify-between text-sm border-b border-gray-100 pb-2">
+                          <span className="text-gray-700">
+                            {item.label}{" "}
+                            <span className="text-gray-400">
+                              ({typeof item.value === "boolean" ? (item.value ? "yes" : "no") : item.value})
+                            </span>
+                          </span>
+                          <span className={`font-semibold ${item.points >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {item.points > 0 ? `+${item.points}` : item.points}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500">No scoring events for this gameweek.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
