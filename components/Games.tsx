@@ -265,20 +265,30 @@ export default function Games() {
                   <button
                     type="button"
                     onClick={() => setSelectedPlayerName(player.name)}
-                    className="w-8 h-8 rounded-full overflow-hidden"
+                    className="relative w-8 h-8"
                   >
-                    <Image
-                      src={player.image}
-                      alt={player.name}
-                      width={32}
-                      height={32}
-                      className="w-full h-full object-cover"
-                      style={{
-                        objectPosition: "center 22%",
-                        transform: `scale(1.18) rotate(${player.imageRotation}deg)`,
-                      }}
-                      unoptimized
-                    />
+                    <div className="w-8 h-8 rounded-full overflow-hidden">
+                      <Image
+                        src={player.image}
+                        alt={player.name}
+                        width={32}
+                        height={32}
+                        className="w-full h-full object-cover"
+                        style={{
+                          objectPosition: "center 22%",
+                          transform: `scale(1.18) rotate(${player.imageRotation}deg)`,
+                        }}
+                        unoptimized
+                      />
+                    </div>
+                    {player.assists > 0 && (
+                      <span className="absolute -top-1 -left-1 leading-none bg-white/90 rounded-full p-[1px] shadow-sm">
+                        <BootIcon />
+                      </span>
+                    )}
+                    {player.goals > 0 && (
+                      <span className="absolute -top-1 -right-1 text-xs leading-none">⚽</span>
+                    )}
                   </button>
                   <div className="mt-1 bg-black/35 rounded px-1.5 py-0.5 w-full">
                     <span className="text-white text-[10px] font-semibold truncate block text-center">
