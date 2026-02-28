@@ -10,9 +10,10 @@ interface SlotPlayer {
 
 interface Props {
   userEmail: string;
+  onTotalPointsChange?: (points: number) => void;
 }
 
-export default function MyTeam({ userEmail }: Props) {
+export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
   const [slotPlayers, setSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
   const [captainName, setCaptainName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -26,21 +27,61 @@ export default function MyTeam({ userEmail }: Props) {
         .eq("user_email", userEmail),
       supabase
         .from("user_teams")
-        .select("captain_name")
+        .select("captain_name, points_deducted")
         .eq("user_email", userEmail)
         .single(),
-    ]).then(([{ data: slotData }, { data: teamData }]) => {
-      if (slotData && slotData.length > 0) {
-        const current: (SlotPlayer | null)[] = Array(5).fill(null);
-        for (const row of slotData) {
-          current[row.slot_index] = { name: row.player_name };
+      supabase
+        .from("gameweek_snapshots")
+        .select("gameweek_number, slot_index, player_name, is_captain")
+        .eq("user_email", userEmail),
+      fetch("/api/gameweek").then((r) => r.json()),
+    ]).then(
+      ([{ data: slotData }, { data: teamData }, { data: snapshotData }, gwData]) => {
+        const snapshots =
+          (snapshotData as Array<{
+            gameweek_number: number;
+            slot_index: number;
+            player_name: string;
+            is_captain?: boolean;
+          }> | null) ?? [];
+
+        if (slotData && slotData.length > 0) {
+          const current: (SlotPlayer | null)[] = Array(5).fill(null);
+          for (const row of slotData) {
+            current[row.slot_index] = { name: row.player_name };
+          }
+          setSlotPlayers(current);
         }
-        setSlotPlayers(current);
+        setCaptainName(teamData?.captain_name ?? null);
+
+        if (!gwData.error && gwData.gameweeks?.length) {
+          let total = 0;
+          for (const gw of gwData.gameweeks as Array<{ number: number; players: Array<{ name: string; points: number }> }>) {
+            const gwSnapshots = snapshots.filter((s) => s.gameweek_number === gw.number);
+            const teamSlots =
+              gwSnapshots.length > 0
+                ? gwSnapshots
+                : (slotData ?? []).map((s) => ({ player_name: s.player_name, is_captain: false }));
+
+            const captainForGw =
+              gwSnapshots.find((s) => s.is_captain)?.player_name ?? teamData?.captain_name ?? null;
+
+            for (const slot of teamSlots) {
+              const stat = gw.players.find((p) => p.name === slot.player_name);
+              const base = stat?.points ?? 0;
+              total += slot.player_name === captainForGw ? base * 2 : base;
+            }
+          }
+          total -= teamData?.points_deducted ?? 0;
+          onTotalPointsChange?.(total);
+        } else {
+          onTotalPointsChange?.(0);
+        }
+
+        setLoaded(true);
       }
-      setCaptainName(teamData?.captain_name ?? null);
-      setLoaded(true);
-    });
-  }, [userEmail]);
+    );
+  }, [userEmail, onTotalPointsChange]);
 
   async function selectCaptain(slotIndex: number) {
     const slot = slotPlayers[slotIndex];

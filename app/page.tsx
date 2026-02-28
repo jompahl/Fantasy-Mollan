@@ -20,6 +20,7 @@ export default function Home() {
   const { data: session, status } = useSession();
   const [activeTab, setActiveTab] = useState<Tab>("My Team");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [myTeamTotalPoints, setMyTeamTotalPoints] = useState<number>(0);
   const { teamName, saveTeamName } = useTeamName(session?.user?.email);
 
   if (status === "loading") {
@@ -128,8 +129,13 @@ export default function Home() {
         <main className="flex-1 px-6 py-8">
           {activeTab === "My Team" && (
             <>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">{teamName}</h2>
-              <MyTeam userEmail={userEmail} />
+              <div className="mb-4">
+                <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
+                <p className="text-sm font-medium text-gray-600 mt-1">
+                  Total points: {myTeamTotalPoints}
+                </p>
+              </div>
+              <MyTeam userEmail={userEmail} onTotalPointsChange={setMyTeamTotalPoints} />
             </>
           )}
           {activeTab === "Points" && (
