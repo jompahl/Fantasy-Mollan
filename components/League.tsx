@@ -3,20 +3,23 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Gameweek } from "@/app/api/gameweek/route";
+import Points from "@/components/Points";
 
 interface Standing {
   teamName: string;
+  userEmail: string;
   totalPoints: number;
 }
 
 export default function League() {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [selected, setSelected] = useState<Standing | null>(null);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/gameweek").then((r) => r.json()),
-      supabase.from("user_teams").select("user_email, team_name"),
+      supabase.from("user_teams").select("user_email, team_name, points_deducted"),
       supabase.from("team_slots").select("user_email, slot_index, player_name"),
       supabase
         .from("gameweek_snapshots")
@@ -29,7 +32,6 @@ export default function League() {
         let totalPoints = 0;
 
         for (const gw of gameweeks) {
-          // Use snapshot for this GW if available, otherwise fall back to current team
           const snapshotSlots = (snapshots ?? []).filter(
             (s) => s.user_email === email && s.gameweek_number === gw.number
           );
@@ -44,7 +46,7 @@ export default function League() {
           }
         }
 
-        return { teamName: team.team_name, totalPoints };
+        return { teamName: team.team_name, userEmail: email, totalPoints: totalPoints - (team.points_deducted ?? 0) };
       });
 
       result.sort((a, b) => b.totalPoints - a.totalPoints);
@@ -55,6 +57,21 @@ export default function League() {
 
   if (!loaded) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
+  }
+
+  if (selected) {
+    return (
+      <div>
+        <button
+          onClick={() => setSelected(null)}
+          className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-4"
+        >
+          ← Back to league
+        </button>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-4">{selected.teamName}</h2>
+        <Points userEmail={selected.userEmail} />
+      </div>
+    );
   }
 
   if (standings.length === 0) {
@@ -75,7 +92,8 @@ export default function League() {
           {standings.map((entry, i) => (
             <tr
               key={entry.teamName}
-              className={`border-b border-gray-100 ${i === 0 ? "font-semibold" : ""}`}
+              onClick={() => setSelected(entry)}
+              className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${i === 0 ? "font-semibold" : ""}`}
             >
               <td className="py-3 text-sm text-gray-400">{i + 1}</td>
               <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>

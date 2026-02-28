@@ -18,9 +18,10 @@ interface Props {
   onSlotClick?: (index: number) => void;
   slotPlayers?: (string | null)[];
   slotPoints?: (number | null)[];
+  slotPrices?: (number | null)[];
 }
 
-export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [] }: Props) {
+export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], slotPrices = [] }: Props) {
   return (
     <div>
       <div
@@ -52,6 +53,7 @@ export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [] }
           const playerName = slotPlayers[i] ?? null;
           const filled = playerName !== null;
           const points = slotPoints[i] ?? null;
+          const price = slotPrices[i] ?? null;
           return (
             <button
               key={i}
@@ -67,6 +69,9 @@ export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [] }
                 <span className="text-white text-xs font-semibold tracking-wide truncate block text-center" style={{ opacity: filled ? 1 : 0.5 }}>
                   {filled ? playerName : slot.label}
                 </span>
+                {filled && price !== null && (
+                  <span className="text-white/70 text-xs block text-center">£{price.toFixed(1)}m</span>
+                )}
               </div>
               {filled && points !== null && points > 0 && (
                 <div className="bg-yellow-400 rounded px-1.5 py-0.5">

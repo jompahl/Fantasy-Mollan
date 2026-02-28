@@ -49,6 +49,7 @@ export default function Transfers({ userEmail }: Props) {
   const [saved, setSaved] = useState(false);
   const [calculatedGwCount, setCalculatedGwCount] = useState<number | null>(null);
   const [transfersUsed, setTransfersUsed] = useState(0);
+  const [pointsDeducted, setPointsDeducted] = useState(0);
 
   // Load players from sheet + number of calculated gameweeks
   useEffect(() => {
@@ -74,7 +75,7 @@ export default function Transfers({ userEmail }: Props) {
           .eq("user_email", userEmail),
         supabase
           .from("user_teams")
-          .select("transfers_used")
+          .select("transfers_used, points_deducted")
           .eq("user_email", userEmail)
           .single(),
       ]);
@@ -93,6 +94,7 @@ export default function Transfers({ userEmail }: Props) {
       }
 
       setTransfersUsed(teamData?.transfers_used ?? 0);
+      setPointsDeducted(teamData?.points_deducted ?? 0);
       setSlotsLoaded(true);
     })();
   }, [userEmail]);
@@ -103,10 +105,19 @@ export default function Transfers({ userEmail }: Props) {
   );
 
   // null = still loading, Infinity = no gameweeks yet (unlimited), number = count
-  const freeTransfers: number | null =
+  const pendingChanges = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
+  const baseFreeTransfers: number | null =
     calculatedGwCount === null ? null
     : calculatedGwCount === 0 ? Infinity
     : Math.max(0, calculatedGwCount - transfersUsed);
+  const freeTransfers: number | null =
+    baseFreeTransfers === null ? null
+    : baseFreeTransfers === Infinity ? Infinity
+    : Math.max(0, baseFreeTransfers - pendingChanges);
+  const extraTransfers =
+    baseFreeTransfers === null || baseFreeTransfers === Infinity ? 0
+    : Math.max(0, pendingChanges - baseFreeTransfers);
+  const pointDeduction = extraTransfers * 4;
 
   function openSlot(index: number) {
     setActiveSlot(index);
@@ -174,16 +185,20 @@ export default function Transfers({ userEmail }: Props) {
     await supabase.from("team_slots").delete().eq("user_email", userEmail);
     if (rows.length > 0) await supabase.from("team_slots").insert(rows);
 
-    // Count changed slots and record transfers used (only after first gameweek)
+    // Only count FREE transfers used — extra transfers cost points but don't
+    // reduce future free transfer allocation.
     if (calculatedGwCount && calculatedGwCount > 0) {
       const changes = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
-      if (changes > 0) {
-        const newTotal = transfersUsed + changes;
-        await supabase
-          .from("user_teams")
-          .update({ transfers_used: newTotal })
-          .eq("user_email", userEmail);
-        setTransfersUsed(newTotal);
+      const freeUsed =
+        baseFreeTransfers === Infinity ? 0 : Math.min(changes, baseFreeTransfers ?? 0);
+      const extras = changes - freeUsed;
+      const updates: Record<string, number> = {};
+      if (freeUsed > 0) updates.transfers_used = transfersUsed + freeUsed;
+      if (extras > 0) updates.points_deducted = pointsDeducted + extras * 4;
+      if (Object.keys(updates).length > 0) {
+        await supabase.from("user_teams").update(updates).eq("user_email", userEmail);
+        if (freeUsed > 0) setTransfersUsed(transfersUsed + freeUsed);
+        if (extras > 0) setPointsDeducted(pointsDeducted + extras * 4);
       }
     }
 
@@ -250,24 +265,44 @@ export default function Transfers({ userEmail }: Props) {
             Free transfers:{" "}
             {freeTransfers === null ? "…" : freeTransfers === Infinity ? "∞" : freeTransfers}
           </p>
-          <p className="text-sm font-medium text-gray-600 mb-0.5">Budget: £{budget.toFixed(1)}m</p>
+          <p className="text-sm font-medium text-gray-600 mb-0.5">
+            Budget: £{(activeSlot !== null && slotPlayers[activeSlot]
+              ? Math.round((budget + slotPlayers[activeSlot]!.price) * 10) / 10
+              : budget
+            ).toFixed(1)}m
+          </p>
           {budget < 0 && (
-            <p className="text-xs text-red-500 mb-2">You have insufficient funds</p>
+            <p className="text-xs text-red-500 mb-1">You have insufficient funds</p>
           )}
-          {budget >= 0 && <div className="mb-2" />}
-          <Pitch onSlotClick={openSlot} slotPlayers={slotPlayers.map((p) => p?.name ?? null)} />
-          <button
-            onClick={saveTeam}
-            disabled={budget < 0 || saving || freeTransfers === 0}
-            className="mt-3 w-full py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-700 disabled:hover:bg-gray-900"
-          >
-            {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
-          </button>
-          {freeTransfers === 0 && (
-            <p className="mt-2 text-xs text-red-500 text-center">
-              You don&apos;t have any transfers left, wait until the next gameweek
-            </p>
+          {pointDeduction > 0 && (
+            <div className="mb-1 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <p className="text-xs text-red-600 font-medium">
+                -{pointDeduction} pt{pointDeduction !== 1 ? "s" : ""} deduction ({extraTransfers} extra transfer{extraTransfers !== 1 ? "s" : ""})
+              </p>
+            </div>
           )}
+          {budget >= 0 && pointDeduction === 0 && <div className="mb-2" />}
+          <Pitch
+            onSlotClick={openSlot}
+            slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
+            slotPrices={slotPlayers.map((p) => p?.price ?? null)}
+          />
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => { setSlotPlayers([...savedSlotPlayers]); setSaved(false); }}
+              disabled={saving || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
+              className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:hover:bg-white"
+            >
+              Reset
+            </button>
+            <button
+              onClick={saveTeam}
+              disabled={budget < 0 || saving || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
+              className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-700 disabled:hover:bg-gray-900"
+            >
+              {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -302,6 +337,7 @@ export default function Transfers({ userEmail }: Props) {
             </div>
 
             {selecting ? (
+              <>
               <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
                 {eligiblePlayers.map((player) => (
                   <li key={player.name}>
@@ -318,6 +354,7 @@ export default function Transfers({ userEmail }: Props) {
                   </li>
                 ))}
               </ul>
+              </>
             ) : (
               <div className="px-6 py-5">
                 {slotPlayers[activeSlot] ? (

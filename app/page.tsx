@@ -11,12 +11,12 @@ import League from "@/components/League";
 import SignInForm from "@/components/SignInForm";
 import Games from "@/components/Games";
 
-const TABS = ["My Team", "Points", "Transfers", "League", "Games"] as const;
+const TABS = ["Points", "Transfers", "League", "Games"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const [activeTab, setActiveTab] = useState<Tab>("My Team");
+  const [activeTab, setActiveTab] = useState<Tab>("Points");
   const [menuOpen, setMenuOpen] = useState(false);
   const { teamName, saveTeamName } = useTeamName(session?.user?.email);
 
@@ -124,10 +124,12 @@ export default function Home() {
         )}
 
         <main className="flex-1 px-6 py-8">
-          {activeTab === "My Team" && (
-            <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
+          {activeTab === "Points" && (
+            <>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">{teamName}</h2>
+              <Points userEmail={userEmail} />
+            </>
           )}
-          {activeTab === "Points" && <Points userEmail={userEmail} />}
           {activeTab === "Transfers" && <Transfers userEmail={userEmail} />}
           {activeTab === "League" && <League />}
           {activeTab === "Games" && <Games />}
