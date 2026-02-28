@@ -125,9 +125,7 @@ export default function Games() {
           </button>
         </div>
       )}
-      <p className="text-sm font-medium text-gray-600 mb-2">
-        Started players: {startedPlayers.length}
-      </p>
+
       <div
         className="relative w-full overflow-hidden rounded-2xl"
         style={{
@@ -170,9 +168,7 @@ export default function Games() {
               <span className="text-white text-xs font-semibold truncate block text-center">
                 {player.name}
               </span>
-            </div>
-            <div className="mt-1 bg-yellow-400 rounded px-1.5 py-0.5">
-              <span className="text-yellow-900 text-xs font-bold">{player.points} pts</span>
+              <span className="text-yellow-300 text-xs font-bold block text-center">{player.points} pts</span>
             </div>
           </div>
         ))}
@@ -205,9 +201,7 @@ export default function Games() {
                     <span className="text-white text-[10px] font-semibold truncate block text-center">
                       {player.name}
                     </span>
-                  </div>
-                  <div className="mt-1 bg-yellow-400 rounded px-1 py-0.5">
-                    <span className="text-yellow-900 text-[10px] font-bold">{player.points} pts</span>
+                    <span className="text-yellow-300 text-[10px] font-bold block text-center">{player.points} pts</span>
                   </div>
                 </div>
               ))}

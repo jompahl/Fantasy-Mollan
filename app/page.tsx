@@ -10,8 +10,9 @@ import Points from "@/components/Points";
 import League from "@/components/League";
 import SignInForm from "@/components/SignInForm";
 import Games from "@/components/Games";
+import Help from "@/components/Help";
 
-const TABS = ["Points", "Transfers", "League", "Games"] as const;
+const TABS = ["Points", "Transfers", "League", "Games", "Help"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function Home() {
@@ -133,6 +134,7 @@ export default function Home() {
           {activeTab === "Transfers" && <Transfers userEmail={userEmail} />}
           {activeTab === "League" && <League />}
           {activeTab === "Games" && <Games />}
+          {activeTab === "Help" && <Help />}
         </main>
       </div>
     );

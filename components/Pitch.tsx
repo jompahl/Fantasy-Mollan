@@ -19,9 +19,10 @@ interface Props {
   slotPlayers?: (string | null)[];
   slotPoints?: (number | null)[];
   slotPrices?: (number | null)[];
+  slotGoals?: (number | null)[];
 }
 
-export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], slotPrices = [] }: Props) {
+export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], slotPrices = [], slotGoals = [] }: Props) {
   return (
     <div>
       <div
@@ -54,6 +55,7 @@ export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], 
           const filled = playerName !== null;
           const points = slotPoints[i] ?? null;
           const price = slotPrices[i] ?? null;
+          const goals = slotGoals[i] ?? 0;
           return (
             <button
               key={i}
@@ -62,22 +64,23 @@ export default function Pitch({ onSlotClick, slotPlayers = [], slotPoints = [], 
               className="absolute flex flex-col items-center gap-1 transition-opacity disabled:cursor-default enabled:hover:opacity-80"
               style={{ left: slot.x, top: slot.y, transform: "translate(-50%, -50%)" }}
             >
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${filled ? "bg-white/20 border border-white/40" : "bg-white/10 border border-dashed border-white/30"}`}>
+              <div className={`relative w-14 h-14 rounded-xl flex items-center justify-center ${filled ? "bg-white/20 border border-white/40" : "bg-white/10 border border-dashed border-white/30"}`}>
                 <JerseyIcon filled={filled} />
+                {filled && goals > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 text-sm leading-none">⚽</span>
+                )}
               </div>
               <div className="bg-black/30 rounded px-2 py-0.5 max-w-[72px]">
                 <span className="text-white text-xs font-semibold tracking-wide truncate block text-center" style={{ opacity: filled ? 1 : 0.5 }}>
                   {filled ? playerName : slot.label}
                 </span>
+                {filled && points !== null && (
+                  <span className="text-yellow-300 text-xs font-bold block text-center">{points} pts</span>
+                )}
                 {filled && price !== null && (
                   <span className="text-white/70 text-xs block text-center">£{price.toFixed(1)}m</span>
                 )}
               </div>
-              {filled && points !== null && points > 0 && (
-                <div className="bg-yellow-400 rounded px-1.5 py-0.5">
-                  <span className="text-yellow-900 text-xs font-bold">{points} pts</span>
-                </div>
-              )}
             </button>
           );
         })}

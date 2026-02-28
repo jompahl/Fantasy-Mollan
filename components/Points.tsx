@@ -20,6 +20,7 @@ export default function Points({ userEmail }: Props) {
   const [snapshots, setSnapshots] = useState<Map<number, (SlotPlayer | null)[]>>(new Map());
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [currentGwIndex, setCurrentGwIndex] = useState<number>(0);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -90,7 +91,18 @@ export default function Points({ userEmail }: Props) {
     return stat?.points ?? 0;
   });
 
+  const slotGoals = slotPlayers.map((p) => {
+    if (!p) return null;
+    const stat = gameweekStats.find((s) => s.name === p.name);
+    return stat?.goals ?? 0;
+  });
+
   const totalPoints = slotPoints.reduce<number>((sum, pts) => sum + (pts ?? 0), 0);
+  const selectedPlayer = selectedSlotIndex !== null ? slotPlayers[selectedSlotIndex] : null;
+  const selectedStat = selectedPlayer
+    ? gameweekStats.find((s) => s.name === selectedPlayer.name)
+    : null;
+  const selectedPoints = selectedStat?.points ?? 0;
 
   return (
     <div className="w-full md:w-60">
@@ -120,9 +132,68 @@ export default function Points({ userEmail }: Props) {
         Total points: {totalPoints}
       </p>
       <Pitch
+        onSlotClick={setSelectedSlotIndex}
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
         slotPoints={slotPoints}
+        slotGoals={slotGoals}
       />
+
+      {selectedSlotIndex !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setSelectedSlotIndex(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">
+                {selectedPlayer?.name ?? "Empty slot"}
+              </h3>
+              <button
+                onClick={() => setSelectedSlotIndex(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              {!selectedPlayer ? (
+                <p className="text-sm text-gray-500">No player selected in this slot.</p>
+              ) : !selectedStat ? (
+                <p className="text-sm text-gray-500">No game data found for this player in this gameweek.</p>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-gray-700 mb-3">
+                    Total: {selectedPoints} pts
+                  </p>
+                  {selectedStat.breakdown.length > 0 ? (
+                    <ul className="space-y-2">
+                      {selectedStat.breakdown.map((item, i) => (
+                        <li key={`${item.label}-${i}`} className="flex items-center justify-between text-sm border-b border-gray-100 pb-2">
+                          <span className="text-gray-700">
+                            {item.label}{" "}
+                            <span className="text-gray-400">
+                              ({typeof item.value === "boolean" ? (item.value ? "yes" : "no") : item.value})
+                            </span>
+                          </span>
+                          <span className={`font-semibold ${item.points >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {item.points > 0 ? `+${item.points}` : item.points}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500">No scoring events for this gameweek.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
