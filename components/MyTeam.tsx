@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Pitch from "@/components/Pitch";
+import Pitch, { SLOTS } from "@/components/Pitch";
 import { supabase } from "@/lib/supabase";
 import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
 import { ensureSnapshots } from "@/lib/ensureSnapshots";
@@ -22,6 +22,10 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
   const [captainSlotIndex, setCaptainSlotIndex] = useState<number | null>(null);
   const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
   const [tripleCaptainGw, setTripleCaptainGw] = useState<number | null>(null);
+  const [activeBoostChip, setActiveBoostChip] = useState<string | null>(null);
+  const [defBoostGw, setDefBoostGw] = useState<number | null>(null);
+  const [midBoostGw, setMidBoostGw] = useState<number | null>(null);
+  const [fwdBoostGw, setFwdBoostGw] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savingCaptain, setSavingCaptain] = useState(false);
   const { isLocked } = useGameweekDeadlineLock();
@@ -34,12 +38,12 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         .eq("user_email", userEmail),
       supabase
         .from("user_teams")
-        .select("points_deducted, joined_gameweek")
+        .select("points_deducted, joined_gameweek, boost_chip")
         .eq("user_email", userEmail)
         .single(),
       supabase
         .from("gameweek_snapshots")
-        .select("gameweek_number, slot_index, player_name, is_captain")
+        .select("gameweek_number, slot_index, player_name, is_captain, boost_chip")
         .eq("user_email", userEmail),
       fetch("/api/gameweek").then((r) => r.json()),
     ]).then(
@@ -50,10 +54,16 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             slot_index: number;
             player_name: string;
             is_captain?: string | null;
+            boost_chip?: string | null;
           }> | null) ?? [];
 
         const tcSnapshot = snapshots.find((s) => s.is_captain === "TRIPLE_CAPTAIN");
         setTripleCaptainGw(tcSnapshot?.gameweek_number ?? null);
+
+        setDefBoostGw(snapshots.find((s) => s.boost_chip === "DEF_BOOST")?.gameweek_number ?? null);
+        setMidBoostGw(snapshots.find((s) => s.boost_chip === "MID_BOOST")?.gameweek_number ?? null);
+        setFwdBoostGw(snapshots.find((s) => s.boost_chip === "FWD_BOOST")?.gameweek_number ?? null);
+        setActiveBoostChip((teamData as { boost_chip?: string | null } | null)?.boost_chip ?? null);
 
         const current: (SlotPlayer | null)[] = Array(5).fill(null);
         let captainIdx: number | null = null;
@@ -73,6 +83,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
 
         if (!gwData.error && gwData.gameweeks?.length) {
           const joinedGameweek: number | null = teamData?.joined_gameweek ?? null;
+          const currentBoostChip = (teamData as { boost_chip?: string | null } | null)?.boost_chip ?? null;
           let total = 0;
           for (const gw of gwData.gameweeks as Array<{ number: number; players: Array<{ name: string; points: number }> }>) {
             if (joinedGameweek !== null && gw.number < joinedGameweek) continue;
@@ -80,7 +91,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             const teamSlots =
               gwSnapshots.length > 0
                 ? gwSnapshots
-                : (slotData ?? []).map((s) => ({ player_name: s.player_name, is_captain: s.is_captain ?? "NOT_CAPTAIN" }));
+                : (slotData ?? []).map((s) => ({ slot_index: s.slot_index, player_name: s.player_name, is_captain: s.is_captain ?? "NOT_CAPTAIN", boost_chip: null as string | null }));
 
             const captainForGw = gwSnapshots.length > 0
               ? (gwSnapshots.find((s) => s.is_captain === "CAPTAIN" || s.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null)
@@ -88,11 +99,14 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             const tcActiveForGw = gwSnapshots.length > 0
               ? gwSnapshots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
               : tcActive;
-
+            const boostChipForGw = gwSnapshots.length > 0
+              ? (gwSnapshots[0]?.boost_chip ?? null)
+              : currentBoostChip;
             for (const slot of teamSlots) {
               const stat = gw.players.find((p) => p.name === slot.player_name);
               const base = stat?.points ?? 0;
-              const multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+              let multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+              if (boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", "")) multiplier *= 2;
               total += base * multiplier;
             }
           }
@@ -106,6 +120,18 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
       }
     ));
   }, [userEmail, onTotalPointsChange]);
+
+  async function toggleBoostChip(chip: "DEF_BOOST" | "MID_BOOST" | "FWD_BOOST") {
+    if (isLocked) return;
+    const chipGw = chip === "DEF_BOOST" ? defBoostGw : chip === "MID_BOOST" ? midBoostGw : fwdBoostGw;
+    if (chipGw !== null) return;
+    const next = activeBoostChip === chip ? null : chip;
+    setActiveBoostChip(next);
+    await supabase
+      .from("user_teams")
+      .update({ boost_chip: next })
+      .eq("user_email", userEmail);
+  }
 
   async function toggleTripleCaptain() {
     if (isLocked || tripleCaptainGw !== null || captainSlotIndex === null) return;
@@ -242,6 +268,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
         slotCaptains={slotPlayers.map((_, i) => i === captainSlotIndex)}
         slotTripleCaptains={slotPlayers.map((_, i) => i === captainSlotIndex && tripleCaptainActive)}
+        slotBoosts={slotPlayers.map((_, i) => !!activeBoostChip && SLOTS[i]?.label === activeBoostChip.replace("_BOOST", ""))}
       />
       <p className="mt-3 text-sm text-gray-600">
         Captain:{" "}
@@ -271,6 +298,63 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
           </div>
           <span className="text-xs">
             {tripleCaptainGw !== null ? `Used in GW ${tripleCaptainGw}` : tripleCaptainActive ? "Active" : "Play chip"}
+          </span>
+        </button>
+        <button
+          onClick={() => toggleBoostChip("DEF_BOOST")}
+          disabled={isLocked || defBoostGw !== null}
+          className={`mt-2 w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-medium transition-colors disabled:cursor-not-allowed
+            ${defBoostGw !== null
+              ? "border-gray-200 bg-gray-50 text-gray-400"
+              : activeBoostChip === "DEF_BOOST"
+              ? "border-blue-400 bg-blue-50 text-blue-800"
+              : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-white bg-blue-500 rounded-full px-1.5 py-0.5 leading-none">2X</span>
+            <span>Defensive Boost</span>
+          </div>
+          <span className="text-xs">
+            {defBoostGw !== null ? `Used in GW ${defBoostGw}` : activeBoostChip === "DEF_BOOST" ? "Active" : "Play chip"}
+          </span>
+        </button>
+        <button
+          onClick={() => toggleBoostChip("MID_BOOST")}
+          disabled={isLocked || midBoostGw !== null}
+          className={`mt-2 w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-medium transition-colors disabled:cursor-not-allowed
+            ${midBoostGw !== null
+              ? "border-gray-200 bg-gray-50 text-gray-400"
+              : activeBoostChip === "MID_BOOST"
+              ? "border-blue-400 bg-blue-50 text-blue-800"
+              : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-white bg-blue-500 rounded-full px-1.5 py-0.5 leading-none">2X</span>
+            <span>Midfield Boost</span>
+          </div>
+          <span className="text-xs">
+            {midBoostGw !== null ? `Used in GW ${midBoostGw}` : activeBoostChip === "MID_BOOST" ? "Active" : "Play chip"}
+          </span>
+        </button>
+        <button
+          onClick={() => toggleBoostChip("FWD_BOOST")}
+          disabled={isLocked || fwdBoostGw !== null}
+          className={`mt-2 w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-medium transition-colors disabled:cursor-not-allowed
+            ${fwdBoostGw !== null
+              ? "border-gray-200 bg-gray-50 text-gray-400"
+              : activeBoostChip === "FWD_BOOST"
+              ? "border-blue-400 bg-blue-50 text-blue-800"
+              : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-white bg-blue-500 rounded-full px-1.5 py-0.5 leading-none">2X</span>
+            <span>Attack Boost</span>
+          </div>
+          <span className="text-xs">
+            {fwdBoostGw !== null ? `Used in GW ${fwdBoostGw}` : activeBoostChip === "FWD_BOOST" ? "Active" : "Play chip"}
           </span>
         </button>
       </div>

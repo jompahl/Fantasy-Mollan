@@ -139,10 +139,11 @@ export default function Transfers({ userEmail }: Props) {
     : joinedGameweek === null
     ? calculatedGwCount
     : gameweeks.filter((gw) => gw.number >= joinedGameweek).length;
+  const MAX_FREE_TRANSFERS = 5;
   const baseFreeTransfers: number | null =
     gwsPlayedSinceJoining === null ? null
     : gwsPlayedSinceJoining === 0 ? Infinity
-    : Math.max(0, gwsPlayedSinceJoining - transfersUsed);
+    : Math.min(MAX_FREE_TRANSFERS, Math.max(0, gwsPlayedSinceJoining - transfersUsed));
   const freeTransfers: number | null =
     baseFreeTransfers === null ? null
     : baseFreeTransfers === Infinity ? Infinity

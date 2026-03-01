@@ -5,6 +5,9 @@ import { AuthProvider } from "@/components/AuthProvider";
 export const metadata: Metadata = {
   title: "Fantasy Möllan",
   description: "FC Möllan Fantasy",
+  icons: {
+    icon: "/fc-mollan-logo.svg",
+  },
 };
 
 export const viewport: Viewport = {

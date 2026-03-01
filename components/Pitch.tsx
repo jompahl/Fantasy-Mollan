@@ -37,6 +37,7 @@ interface Props {
   slotTripleCaptains?: (boolean | null)[];
   slotYellowCards?: (number | null)[];
   slotRedCards?: (number | null)[];
+  slotBoosts?: (boolean | null)[];
 }
 
 export default function Pitch({
@@ -50,6 +51,7 @@ export default function Pitch({
   slotTripleCaptains = [],
   slotYellowCards = [],
   slotRedCards = [],
+  slotBoosts = [],
 }: Props) {
   return (
     <div>
@@ -89,6 +91,7 @@ export default function Pitch({
           const isTripleCaptain = slotTripleCaptains[i] ?? false;
           const yellowCards = slotYellowCards[i] ?? 0;
           const redCards = slotRedCards[i] ?? 0;
+          const isBoost = slotBoosts[i] ?? false;
           return (
             <button
               key={i}
@@ -97,8 +100,13 @@ export default function Pitch({
               className="absolute flex flex-col items-center gap-1 transition-opacity disabled:cursor-default enabled:hover:opacity-80"
               style={{ left: slot.x, top: slot.y, transform: "translate(-50%, -50%)" }}
             >
-              <div className={`relative w-14 h-14 rounded-xl flex items-center justify-center ${filled ? "bg-white/20 border border-white/40" : "bg-white/10 border border-dashed border-white/30"}`}>
+              <div className={`relative w-14 h-14 rounded-xl flex items-center justify-center ${isBoost && filled ? "bg-blue-400/20 border-2 border-blue-400" : filled ? "bg-white/20 border border-white/40" : "bg-white/10 border border-dashed border-white/30"}`}>
                 <JerseyIcon filled={filled} />
+                {filled && isBoost && (
+                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] font-bold text-white bg-blue-500 rounded-full px-1.5 py-0.5 leading-none shadow-sm z-10">
+                    2X
+                  </span>
+                )}
                 {filled && assists > 0 && (
                   <span className="absolute -top-1.5 -left-1.5 leading-none bg-white/90 rounded-full p-[1px] shadow-sm">
                     <BootIcon />

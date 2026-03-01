@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Gameweek } from "@/app/api/gameweek/route";
 import Points from "@/components/Points";
+import { SLOTS } from "@/components/Pitch";
 
 interface Standing {
   teamName: string;
@@ -19,11 +20,11 @@ export default function League() {
   useEffect(() => {
     Promise.all([
       fetch("/api/gameweek").then((r) => r.json()),
-      supabase.from("user_teams").select("user_email, team_name, points_deducted, joined_gameweek"),
+      supabase.from("user_teams").select("user_email, team_name, points_deducted, joined_gameweek, boost_chip"),
       supabase.from("team_slots").select("user_email, slot_index, player_name, is_captain"),
       supabase
         .from("gameweek_snapshots")
-        .select("user_email, gameweek_number, slot_index, player_name, is_captain"),
+        .select("user_email, gameweek_number, slot_index, player_name, is_captain, boost_chip"),
     ]).then(([gwData, { data: teams }, { data: slots }, { data: snapshots }]) => {
       const gameweeks: Gameweek[] = gwData.gameweeks ?? [];
 
@@ -32,6 +33,7 @@ export default function League() {
         let totalPoints = 0;
 
         const joinedGameweek: number | null = (team as { joined_gameweek?: number | null }).joined_gameweek ?? null;
+        const userBoostChip = (team as { boost_chip?: string | null }).boost_chip ?? null;
         for (const gw of gameweeks) {
           if (joinedGameweek !== null && gw.number < joinedGameweek) continue;
           const snapshotSlots = (snapshots ?? []).filter(
@@ -44,6 +46,9 @@ export default function League() {
           const tcActiveForGw = snapshotSlots.length > 0
             ? snapshotSlots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
             : currentCaptainSlot?.is_captain === "TRIPLE_CAPTAIN";
+          const boostChipForGw = snapshotSlots.length > 0
+            ? ((snapshotSlots[0] as { boost_chip?: string | null }).boost_chip ?? null)
+            : userBoostChip;
           const teamSlots =
             snapshotSlots.length > 0
               ? snapshotSlots
@@ -52,7 +57,8 @@ export default function League() {
           for (const slot of teamSlots) {
             const stat = gw.players.find((p) => p.name === slot.player_name);
             const points = stat?.points ?? 0;
-            const multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+            let multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+            if (boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", "")) multiplier *= 2;
             totalPoints += points * multiplier;
           }
         }

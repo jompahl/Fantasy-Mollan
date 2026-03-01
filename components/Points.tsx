@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import Pitch from "@/components/Pitch";
+import Pitch, { SLOTS } from "@/components/Pitch";
 import PlayerHistory from "@/components/PlayerHistory";
 import { supabase } from "@/lib/supabase";
 import { ensureSnapshots } from "@/lib/ensureSnapshots";
@@ -34,6 +34,8 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [snapshotBoostChips, setSnapshotBoostChips] = useState<Map<number, string>>(new Map());
+  const [currentBoostChip, setCurrentBoostChip] = useState<string | null>(null);
 
   useEffect(() => {
     ensureSnapshots(userEmail).then(() => Promise.all([
@@ -43,13 +45,13 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
         .eq("user_email", userEmail),
       supabase
         .from("gameweek_snapshots")
-        .select("gameweek_number, slot_index, player_name, player_position, player_price, is_captain")
+        .select("gameweek_number, slot_index, player_name, player_position, player_price, is_captain, boost_chip")
         .eq("user_email", userEmail),
       fetch("/api/players").then((r) => r.json() as Promise<{ players?: Player[]; error?: string }>),
       fetch("/api/gameweek").then((r) => r.json()),
       supabase
         .from("user_teams")
-        .select("points_deducted, joined_gameweek")
+        .select("points_deducted, joined_gameweek, boost_chip")
         .eq("user_email", userEmail)
         .single(),
     ]).then(([{ data: slotData }, { data: snapshotData }, playersData, gwData, { data: teamData }]) => {
@@ -74,6 +76,7 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
         const map = new Map<number, (SlotPlayer | null)[]>();
         const captainMap = new Map<number, string>();
         const tcSet = new Set<number>();
+        const boostChipMap = new Map<number, string>();
         for (const row of snapshotData) {
           if (!map.has(row.gameweek_number)) {
             map.set(row.gameweek_number, Array(5).fill(null));
@@ -89,11 +92,15 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
           if (row.is_captain === "TRIPLE_CAPTAIN") {
             tcSet.add(row.gameweek_number);
           }
+          const chip = (row as { boost_chip?: string | null }).boost_chip;
+          if (chip) boostChipMap.set(row.gameweek_number, chip);
         }
         setSnapshots(map);
         setSnapshotTripleCaptains(tcSet);
         setSnapshotCaptains(captainMap);
+        setSnapshotBoostChips(boostChipMap);
       }
+      setCurrentBoostChip((teamData as { boost_chip?: string | null } | null)?.boost_chip ?? null);
 
       if (!gwData.error && gwData.gameweeks?.length > 0) {
         const joinedGameweek: number | null = teamData?.joined_gameweek ?? null;
@@ -106,6 +113,12 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
         // Compute overall total across all eligible GWs for the header callback
         let overallTotal = 0;
         const allSnapshots = snapshotData ?? [];
+        const localBoostChip = (teamData as { boost_chip?: string | null } | null)?.boost_chip ?? null;
+        const gwBoostChipMap = new Map<number, string>(
+          (allSnapshots as Array<{ gameweek_number: number; boost_chip?: string | null }>)
+            .filter((s) => s.boost_chip != null)
+            .map((s) => [s.gameweek_number, s.boost_chip!])
+        );
         for (const gw of eligibleGameweeks) {
           const gwSnapshots = allSnapshots.filter((s) => s.gameweek_number === gw.number);
           const slots = gwSnapshots.length > 0 ? gwSnapshots : (slotData ?? []);
@@ -115,10 +128,12 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
           const tcForGw = gwSnapshots.length > 0
             ? gwSnapshots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
             : (slotData ?? []).some((s) => s.is_captain === "TRIPLE_CAPTAIN");
+          const boostChipForGw = gwSnapshots.length > 0 ? (gwBoostChipMap.get(gw.number) ?? null) : localBoostChip;
           for (const slot of slots) {
             const stat = gw.players.find((p) => p.name === slot.player_name);
             const base = stat?.points ?? 0;
-            const multiplier = slot.player_name === capName ? (tcForGw ? 3 : 2) : 1;
+            let multiplier = slot.player_name === capName ? (tcForGw ? 3 : 2) : 1;
+            if (boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", "")) multiplier *= 2;
             overallTotal += base * multiplier;
           }
         }
@@ -163,14 +178,16 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
   const tcActiveForCurrentGw = currentGameweek
     ? snapshotTripleCaptains.has(currentGameweek.number) || (!hasSnapshotForGw && currentTcActive)
     : false;
-  const slotPoints = slotPlayers.map((p) => {
+  const boostChipForCurrentGw = currentGameweek
+    ? (snapshotBoostChips.get(currentGameweek.number) ?? (!hasSnapshotForGw ? currentBoostChip : null))
+    : null;
+  const slotPoints = slotPlayers.map((p, i) => {
     if (!p) return null;
     const stat = gameweekStats.find((s) => s.name === p.name);
     const basePoints = stat?.points ?? 0;
-    if (captainForCurrentGw && p.name === captainForCurrentGw) {
-      return basePoints * (tcActiveForCurrentGw ? 3 : 2);
-    }
-    return basePoints;
+    let multiplier = (captainForCurrentGw && p.name === captainForCurrentGw) ? (tcActiveForCurrentGw ? 3 : 2) : 1;
+    if (boostChipForCurrentGw && SLOTS[i]?.label === boostChipForCurrentGw.replace("_BOOST", "")) multiplier *= 2;
+    return basePoints * multiplier;
   });
 
   const slotGoals = slotPlayers.map((p) => {
@@ -210,11 +227,19 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
     : 0;
   const selectedIsCaptain =
     selectedPlayer !== null && captainForCurrentGw !== null && selectedPlayer.name === captainForCurrentGw;
+  const selectedIsBoost =
+    selectedSlotIndex !== null &&
+    !!boostChipForCurrentGw &&
+    SLOTS[selectedSlotIndex]?.label === boostChipForCurrentGw.replace("_BOOST", "");
+  const boostLabel = boostChipForCurrentGw === "DEF_BOOST" ? "Defensive" : boostChipForCurrentGw === "MID_BOOST" ? "Midfield" : "Attack";
   const selectedBreakdown = selectedStat
     ? [
         ...selectedStat.breakdown,
         ...(selectedIsCaptain
           ? [{ label: tcActiveForCurrentGw ? "Triple Captain bonus (triple points)" : "Captain bonus (double points)", value: true, points: tcActiveForCurrentGw ? selectedStat.points * 2 : selectedStat.points }]
+          : []),
+        ...(selectedIsBoost
+          ? [{ label: `${boostLabel} Boost (double points)`, value: true, points: selectedStat.points * (tcActiveForCurrentGw ? 3 : selectedIsCaptain ? 2 : 1) }]
           : []),
       ]
     : [];
@@ -244,7 +269,7 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
         </div>
       )}
       <p className="text-sm font-medium text-gray-600 mb-2">
-        Total points: {totalPoints}
+        Gameweek points: {totalPoints}
       </p>
       <Pitch
         onSlotClick={(i) => { setSelectedSlotIndex(i); setShowHistory(false); }}
@@ -256,7 +281,27 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
         slotRedCards={slotRedCards}
         slotCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw : false))}
         slotTripleCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw && tcActiveForCurrentGw : false))}
+        slotBoosts={slotPlayers.map((_, i) => !!boostChipForCurrentGw && SLOTS[i]?.label === boostChipForCurrentGw.replace("_BOOST", ""))}
       />
+
+      {(tcActiveForCurrentGw || boostChipForCurrentGw) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {tcActiveForCurrentGw && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-yellow-300 bg-yellow-50">
+              <span className="text-[11px] font-bold text-yellow-900 bg-yellow-300 rounded-full px-1.5 py-0.5 leading-none">TC</span>
+              <span className="text-sm font-medium text-yellow-800">Triple Captain played</span>
+            </div>
+          )}
+          {boostChipForCurrentGw && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-blue-200 bg-blue-50">
+              <span className="text-[11px] font-bold text-white bg-blue-500 rounded-full px-1.5 py-0.5 leading-none">2X</span>
+              <span className="text-sm font-medium text-blue-800">
+                {boostChipForCurrentGw === "DEF_BOOST" ? "Defensive Boost" : boostChipForCurrentGw === "MID_BOOST" ? "Midfield Boost" : "Attack Boost"} played
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedSlotIndex !== null && (
         <div
