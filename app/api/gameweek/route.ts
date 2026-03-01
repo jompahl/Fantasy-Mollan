@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 const SHEET_ID = "1Yn8-DvcCCHG0dkb588tGdjruPXE8h7SDi2DM-yV_ZXg";
 const GAMEWEEK_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=1520740865`;
 const PLAYERS_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
+const TEAMS_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=760832495`;
 
 const APPEARANCE_POINTS_UNDER_45 = 1;
 const APPEARANCE_POINTS_45_OR_MORE = 2;
@@ -49,6 +50,10 @@ export interface PlayerPoints {
 export interface Gameweek {
   number: number;
   players: PlayerPoints[];
+  opponent?: string;
+  homeAway?: "home" | "away";
+  score?: string;
+  opponentImage?: string;
 }
 
 function normalizeName(name: string): string {
@@ -87,6 +92,32 @@ function toBoolean(value: string | undefined): boolean {
   return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "x";
 }
 
+async function fetchTeamImageMap(): Promise<Map<string, string>> {
+  const res = await fetch(TEAMS_CSV_URL, { cache: "no-store" });
+  if (!res.ok) return new Map();
+
+  const text = await res.text();
+  const lines = text.split("\n").filter((l) => l.trim());
+  if (lines.length === 0) return new Map();
+
+  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const teamCol = findColumnIndex(header, ["team", "name", "club"]);
+  const imageCol = findColumnIndex(header, ["image"]);
+  if (teamCol === -1 || imageCol === -1) return new Map();
+
+  const map = new Map<string, string>();
+  for (const line of lines.slice(1)) {
+    const cols = line.split(",");
+    const team = cols[teamCol]?.trim().replace(/^"|"$/g, "");
+    if (!team) continue;
+    const imageRaw = cols[imageCol]?.trim().replace(/^"|"$/g, "").trim();
+    if (!imageRaw) continue;
+    const image = imageRaw.startsWith("http") ? imageRaw : `/${encodeURIComponent(imageRaw)}`;
+    map.set(team.toLowerCase(), image);
+  }
+  return map;
+}
+
 async function fetchPlayerPositionMap(): Promise<Map<string, string>> {
   const res = await fetch(PLAYERS_CSV_URL, { cache: "no-store" });
   if (!res.ok) return new Map();
@@ -116,9 +147,10 @@ async function fetchPlayerPositionMap(): Promise<Map<string, string>> {
 
 export async function GET() {
   try {
-    const [res, playerPositionMap] = await Promise.all([
+    const [res, playerPositionMap, teamImageMap] = await Promise.all([
       fetch(GAMEWEEK_CSV_URL, { cache: "no-store" }),
       fetchPlayerPositionMap(),
+      fetchTeamImageMap(),
     ]);
     if (!res.ok) throw new Error("Failed to fetch");
 
@@ -136,6 +168,9 @@ export async function GET() {
       const headerCols = lines[start].split(",");
       const normalizedHeader = headerCols.map((c) => c.trim().toLowerCase());
       const calculatedColIndex = findColumnIndex(normalizedHeader, ["calculated"]);
+      const opponentColIndex = findColumnIndex(normalizedHeader, ["opponent"]);
+      const homeAwayColIndex = findColumnIndex(normalizedHeader, ["home/away", "homeaway", "home_away"]);
+      const scoreColIndex = findColumnIndex(normalizedHeader, ["score"]);
       const minutesColIndex = findColumnIndex(normalizedHeader, ["minutes", "minutes played", "mins"]);
       const goalsColIndex = findColumnIndex(normalizedHeader, ["goals", "goal"]);
       const assistsColIndex = findColumnIndex(normalizedHeader, ["assists", "assist"]);
@@ -157,6 +192,18 @@ export async function GET() {
       const firstCols = firstDataLine.split(",");
       const calculated = calculatedColIndex >= 0 ? toBoolean(firstCols[calculatedColIndex]) : false;
       if (!calculated) return [];
+
+      const opponent = (opponentColIndex >= 0 ? firstCols[opponentColIndex]?.trim() : "")
+        ?.replace(/^"|"$/g, "").trim() || undefined;
+      const homeAwayRaw = (homeAwayColIndex >= 0 ? firstCols[homeAwayColIndex]?.trim() : "")
+        ?.replace(/^"|"$/g, "").trim().toLowerCase() ?? "";
+      const homeAway: "home" | "away" | undefined =
+        homeAwayRaw === "home" || homeAwayRaw === "hemma" || homeAwayRaw === "h" ? "home"
+        : homeAwayRaw === "away" || homeAwayRaw === "borta" || homeAwayRaw === "b" ? "away"
+        : undefined;
+      const score = (scoreColIndex >= 0 ? firstCols[scoreColIndex]?.trim() : "")
+        ?.replace(/^"|"$/g, "").trim() || undefined;
+      const opponentImage = opponent ? teamImageMap.get(opponent.toLowerCase()) : undefined;
 
       const players: PlayerPoints[] = [];
       for (const line of lines.slice(start + 1, end)) {
@@ -277,7 +324,7 @@ export async function GET() {
         });
       }
 
-      return [{ number: idx + 1, players }];
+      return [{ number: idx + 1, players, opponent, homeAway, score, opponentImage }];
     });
 
     return NextResponse.json({ gameweeks });

@@ -157,6 +157,10 @@ export default function Games() {
     ? allPlayers.find((p) => p.name === selectedPlayerName)
     : null;
 
+  const { opponent, homeAway, score, opponentImage } = currentGameweek;
+  const leftTeam  = homeAway === "away" ? opponent : "FC Möllan";
+  const rightTeam = homeAway === "away" ? "FC Möllan" : opponent;
+
   return (
     <div className="w-full md:w-[34rem]">
       {gameweeks.length > 0 && (
@@ -178,6 +182,57 @@ export default function Games() {
           >
             →
           </button>
+        </div>
+      )}
+
+      {/* Match scoreline card */}
+      {(opponent || score) && (
+        <div className="mb-4 rounded-2xl border border-gray-200 bg-white px-6 py-4 flex items-center justify-between gap-4">
+          {/* Left team */}
+          <div className="flex flex-col items-center gap-1.5 w-24">
+            <div className="w-14 h-14 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+              {leftTeam === "FC Möllan" ? (
+                <Image src="/fc-mollan-logo.svg" alt="FC Möllan" width={48} height={48} className="object-contain" />
+              ) : opponentImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={opponentImage} alt={leftTeam ?? "Opponent"} className="w-12 h-12 object-contain" />
+              ) : (
+                <span className="text-lg font-bold text-gray-500">
+                  {leftTeam?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{leftTeam}</span>
+          </div>
+
+          {/* Score */}
+          <div className="flex flex-col items-center flex-1">
+            {score ? (
+              <>
+                <span className="text-3xl font-bold text-gray-900 tracking-tight">{score}</span>
+                <span className="text-xs text-gray-400 font-medium mt-0.5">FT</span>
+              </>
+            ) : (
+              <span className="text-sm text-gray-400">vs</span>
+            )}
+          </div>
+
+          {/* Right team */}
+          <div className="flex flex-col items-center gap-1.5 w-24">
+            <div className="w-14 h-14 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+              {rightTeam === "FC Möllan" ? (
+                <Image src="/fc-mollan-logo.svg" alt="FC Möllan" width={48} height={48} className="object-contain" />
+              ) : opponentImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={opponentImage} alt={rightTeam ?? "Opponent"} className="w-12 h-12 object-contain" />
+              ) : (
+                <span className="text-lg font-bold text-gray-500">
+                  {rightTeam?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-semibold text-gray-700 text-center leading-tight">{rightTeam}</span>
+          </div>
         </div>
       )}
 
