@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Pitch from "@/components/Pitch";
 import { supabase } from "@/lib/supabase";
+import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
 
 interface SlotPlayer {
   name: string;
@@ -18,6 +19,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
   const [captainSlotIndex, setCaptainSlotIndex] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savingCaptain, setSavingCaptain] = useState(false);
+  const { isLocked } = useGameweekDeadlineLock();
 
   useEffect(() => {
     Promise.all([
@@ -87,6 +89,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
   }, [userEmail, onTotalPointsChange]);
 
   async function selectCaptain(slotIndex: number) {
+    if (isLocked) return;
     const slot = slotPlayers[slotIndex];
     if (!slot) return;
 
@@ -196,8 +199,13 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
       <p className="text-sm font-medium text-gray-600 mb-2">
         Select captain for the upcoming gameweek
       </p>
+      {isLocked && (
+        <p className="text-sm text-red-600 mb-2">
+          The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked by admin
+        </p>
+      )}
       <Pitch
-        onSlotClick={selectCaptain}
+        onSlotClick={isLocked ? undefined : selectCaptain}
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
         slotCaptains={slotPlayers.map((_, i) => i === captainSlotIndex)}
       />

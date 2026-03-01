@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTeamName } from "@/components/useTeamName";
 import TeamNameSetup from "@/components/TeamNameSetup";
 import Transfers from "@/components/Transfers";
@@ -12,9 +12,11 @@ import SignInForm from "@/components/SignInForm";
 import Games from "@/components/Games";
 import Help from "@/components/Help";
 import MyTeam from "@/components/MyTeam";
+import GameweekAdministration from "@/components/GameweekAdministration";
 
-const TABS = ["My Team", "Points", "Transfers", "League", "Games", "Help"] as const;
-type Tab = (typeof TABS)[number];
+const ADMIN_EMAIL = "johndahlberg14@gmail.com";
+const ALL_TABS = ["My Team", "Points", "Transfers", "League", "Games", "Help", "GW admin"] as const;
+type Tab = (typeof ALL_TABS)[number];
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -22,13 +24,23 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [myTeamTotalPoints, setMyTeamTotalPoints] = useState<number>(0);
   const { teamName, saveTeamName } = useTeamName(session?.user?.email);
+  const userEmail = session?.user?.email ?? null;
+  const isAdmin = userEmail === ADMIN_EMAIL;
+  const visibleTabs: Tab[] = isAdmin
+    ? [...ALL_TABS]
+    : ALL_TABS.filter((tab) => tab !== "GW admin");
+
+  useEffect(() => {
+    if (!isAdmin && activeTab === "GW admin") {
+      setActiveTab("My Team");
+    }
+  }, [isAdmin, activeTab]);
 
   if (status === "loading") {
     return <main className="min-h-screen bg-white" />;
   }
 
   if (session) {
-    const userEmail = session.user?.email;
     if (!userEmail) {
       return <main className="min-h-screen bg-white" />;
     }
@@ -57,7 +69,7 @@ export default function Home() {
 
           {/* Tabs — desktop */}
           <div className="hidden md:flex items-center gap-1">
-            {TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -104,7 +116,7 @@ export default function Home() {
         {/* Mobile dropdown menu */}
         {menuOpen && (
           <div className="md:hidden border-b border-gray-200 bg-white px-4 py-2">
-            {TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => { setActiveTab(tab); setMenuOpen(false); }}
@@ -146,6 +158,7 @@ export default function Home() {
           {activeTab === "League" && <League />}
           {activeTab === "Games" && <Games />}
           {activeTab === "Help" && <Help />}
+          {activeTab === "GW admin" && isAdmin && <GameweekAdministration />}
         </main>
       </div>
     );

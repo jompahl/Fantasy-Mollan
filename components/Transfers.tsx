@@ -6,6 +6,7 @@ import Image from "next/image";
 import type { Player } from "@/app/api/players/route";
 import Pitch, { SLOTS } from "@/components/Pitch";
 import { supabase } from "@/lib/supabase";
+import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
 
 const POSITION_STYLES: Record<string, string> = {
   GK:  "bg-yellow-100 text-yellow-800",
@@ -52,6 +53,7 @@ export default function Transfers({ userEmail }: Props) {
   const [transfersUsed, setTransfersUsed] = useState(0);
   const [pointsDeducted, setPointsDeducted] = useState(0);
   const [captainName, setCaptainName] = useState<string | null>(null);
+  const { isLocked: deadlineLocked } = useGameweekDeadlineLock();
 
   // Load players from sheet + number of calculated gameweeks
   useEffect(() => {
@@ -125,6 +127,7 @@ export default function Transfers({ userEmail }: Props) {
   const pointDeduction = extraTransfers * 4;
 
   function openSlot(index: number) {
+    if (deadlineLocked) return;
     setActiveSlot(index);
     setSelecting(false);
   }
@@ -146,6 +149,7 @@ export default function Transfers({ userEmail }: Props) {
   }
 
   async function saveTeam() {
+    if (deadlineLocked) return;
     setSaving(true);
 
     // Snapshot the current saved team for any calculated GWs that don't have one yet
@@ -274,6 +278,11 @@ export default function Transfers({ userEmail }: Props) {
 
         {/* Pitch */}
         <div className="w-full md:w-60 md:flex-shrink-0 md:sticky md:top-8 order-first md:order-last">
+          {deadlineLocked && (
+            <p className="text-sm text-red-600 mb-2">
+              The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked by admin
+            </p>
+          )}
           <p className="text-sm font-medium text-gray-600 mb-0.5">
             Free transfers:{" "}
             {freeTransfers === null ? "…" : freeTransfers === Infinity ? "∞" : freeTransfers}
@@ -296,21 +305,21 @@ export default function Transfers({ userEmail }: Props) {
           )}
           {budget >= 0 && pointDeduction === 0 && <div className="mb-2" />}
           <Pitch
-            onSlotClick={openSlot}
+            onSlotClick={deadlineLocked ? undefined : openSlot}
             slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
             slotPrices={slotPlayers.map((p) => p?.price ?? null)}
           />
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => { setSlotPlayers([...savedSlotPlayers]); setSaved(false); }}
-              disabled={saving || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
+              disabled={deadlineLocked || saving || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
               className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:hover:bg-white"
             >
               Reset
             </button>
             <button
               onClick={saveTeam}
-              disabled={budget < 0 || saving || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
+              disabled={deadlineLocked || budget < 0 || saving || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
               className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-700 disabled:hover:bg-gray-900"
             >
               {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
