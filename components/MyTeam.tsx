@@ -15,7 +15,7 @@ interface Props {
 
 export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
   const [slotPlayers, setSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
-  const [captainName, setCaptainName] = useState<string | null>(null);
+  const [captainSlotIndex, setCaptainSlotIndex] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savingCaptain, setSavingCaptain] = useState(false);
 
@@ -23,11 +23,11 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
     Promise.all([
       supabase
         .from("team_slots")
-        .select("slot_index, player_name")
+        .select("slot_index, player_name, is_captain")
         .eq("user_email", userEmail),
       supabase
         .from("user_teams")
-        .select("captain_name, points_deducted")
+        .select("points_deducted")
         .eq("user_email", userEmail)
         .single(),
       supabase
@@ -45,14 +45,16 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             is_captain?: boolean;
           }> | null) ?? [];
 
+        const current: (SlotPlayer | null)[] = Array(5).fill(null);
+        let captainIdx: number | null = null;
         if (slotData && slotData.length > 0) {
-          const current: (SlotPlayer | null)[] = Array(5).fill(null);
           for (const row of slotData) {
             current[row.slot_index] = { name: row.player_name };
+            if (row.is_captain) captainIdx = row.slot_index;
           }
           setSlotPlayers(current);
         }
-        setCaptainName(teamData?.captain_name ?? null);
+        setCaptainSlotIndex(captainIdx);
 
         if (!gwData.error && gwData.gameweeks?.length) {
           let total = 0;
@@ -61,11 +63,11 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             const teamSlots =
               gwSnapshots.length > 0
                 ? gwSnapshots
-                : (slotData ?? []).map((s) => ({ player_name: s.player_name, is_captain: false }));
+                : (slotData ?? []).map((s) => ({ player_name: s.player_name, is_captain: s.is_captain ?? false }));
 
             const captainForGw = gwSnapshots.length > 0
               ? (gwSnapshots.find((s) => s.is_captain)?.player_name ?? null)
-              : (teamData?.captain_name ?? null);
+              : (captainIdx !== null ? current[captainIdx]?.name ?? null : null);
 
             for (const slot of teamSlots) {
               const stat = gw.players.find((p) => p.name === slot.player_name);
@@ -88,15 +90,11 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
     const slot = slotPlayers[slotIndex];
     if (!slot) return;
 
-    const nextCaptain = slot.name;
-    const previousCaptain = captainName;
-    setCaptainName(nextCaptain);
+    const previousCaptainName = captainSlotIndex !== null ? slotPlayers[captainSlotIndex]?.name ?? null : null;
+    setCaptainSlotIndex(slotIndex);
     setSavingCaptain(true);
 
     // Freeze captain history for all calculated gameweeks before changing captain.
-    // Always runs — even if previousCaptain is null — so GWs with no captain are
-    // explicitly marked as such, preventing future captain changes from retroactively
-    // applying a captain to those gameweeks.
     const gwData = await fetch("/api/gameweek").then((r) => r.json());
     const calculatedGameweeks: { number: number }[] = gwData.gameweeks ?? [];
     if (calculatedGameweeks.length > 0) {
@@ -124,7 +122,6 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         snapshotByGw.get(row.gameweek_number)!.push(row);
       }
 
-      // Insert missing gameweek snapshots with the previous captain (or no captain).
       const insertRows = [];
       for (const gw of calculatedGameweeks) {
         if (!snapshotByGw.has(gw.number)) {
@@ -136,7 +133,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
               player_name: row.player_name,
               player_position: row.player_position,
               player_price: row.player_price,
-              is_captain: previousCaptain !== null && row.player_name === previousCaptain,
+              is_captain: previousCaptainName !== null && row.player_name === previousCaptainName,
             });
           }
         }
@@ -146,8 +143,6 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         await supabase.from("gameweek_snapshots").insert(insertRows);
       }
 
-      // For existing snapshots not yet frozen (is_captain is null = never explicitly set),
-      // freeze captain now. Already-frozen snapshots (is_captain is true or false) are skipped.
       const existingGwNumbers = calculatedGameweeks
         .map((g) => g.number)
         .filter((gwNumber) => snapshotByGw.has(gwNumber));
@@ -163,21 +158,27 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
           .eq("user_email", userEmail)
           .eq("gameweek_number", gwNumber);
 
-        if (previousCaptain) {
+        if (previousCaptainName) {
           await supabase
             .from("gameweek_snapshots")
             .update({ is_captain: true })
             .eq("user_email", userEmail)
             .eq("gameweek_number", gwNumber)
-            .eq("player_name", previousCaptain);
+            .eq("player_name", previousCaptainName);
         }
       }
     }
 
-    const { error } = await supabase
-      .from("user_teams")
-      .update({ captain_name: nextCaptain })
+    // Update team_slots: clear all captains then set the new one
+    await supabase
+      .from("team_slots")
+      .update({ is_captain: false })
       .eq("user_email", userEmail);
+    const { error } = await supabase
+      .from("team_slots")
+      .update({ is_captain: true })
+      .eq("user_email", userEmail)
+      .eq("slot_index", slotIndex);
     if (error) {
       console.error("[my-team] could not persist captain:", error.message);
     }
@@ -188,6 +189,8 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
   }
 
+  const captainName = captainSlotIndex !== null ? slotPlayers[captainSlotIndex]?.name ?? null : null;
+
   return (
     <div className="w-full md:w-60">
       <p className="text-sm font-medium text-gray-600 mb-2">
@@ -196,7 +199,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
       <Pitch
         onSlotClick={selectCaptain}
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
-        slotCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainName : false))}
+        slotCaptains={slotPlayers.map((_, i) => i === captainSlotIndex)}
       />
       <p className="mt-3 text-sm text-gray-600">
         Captain:{" "}

@@ -19,8 +19,8 @@ export default function League() {
   useEffect(() => {
     Promise.all([
       fetch("/api/gameweek").then((r) => r.json()),
-      supabase.from("user_teams").select("user_email, team_name, points_deducted, captain_name"),
-      supabase.from("team_slots").select("user_email, slot_index, player_name"),
+      supabase.from("user_teams").select("user_email, team_name, points_deducted"),
+      supabase.from("team_slots").select("user_email, slot_index, player_name, is_captain"),
       supabase
         .from("gameweek_snapshots")
         .select("user_email, gameweek_number, slot_index, player_name, is_captain"),
@@ -35,9 +35,10 @@ export default function League() {
           const snapshotSlots = (snapshots ?? []).filter(
             (s) => s.user_email === email && s.gameweek_number === gw.number
           );
+          const currentCaptainSlot = (slots ?? []).find((s) => s.user_email === email && s.is_captain);
           const captainForGw = snapshotSlots.length > 0
             ? (snapshotSlots.find((s) => s.is_captain)?.player_name ?? null)
-            : team.captain_name;
+            : (currentCaptainSlot?.player_name ?? null);
           const teamSlots =
             snapshotSlots.length > 0
               ? snapshotSlots

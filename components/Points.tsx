@@ -29,20 +29,16 @@ export default function Points({ userEmail }: Props) {
     Promise.all([
       supabase
         .from("team_slots")
-        .select("slot_index, player_name, player_position, player_price")
+        .select("slot_index, player_name, player_position, player_price, is_captain")
         .eq("user_email", userEmail),
       supabase
         .from("gameweek_snapshots")
         .select("gameweek_number, slot_index, player_name, player_position, player_price, is_captain")
         .eq("user_email", userEmail),
-      supabase
-        .from("user_teams")
-        .select("captain_name")
-        .eq("user_email", userEmail)
-        .single(),
       fetch("/api/gameweek").then((r) => r.json()),
-    ]).then(([{ data: slotData }, { data: snapshotData }, { data: teamData }, gwData]) => {
+    ]).then(([{ data: slotData }, { data: snapshotData }, gwData]) => {
       // Current team (fallback when no snapshot exists)
+      let currentCaptainName: string | null = null;
       if (slotData && slotData.length > 0) {
         const current: (SlotPlayer | null)[] = Array(5).fill(null);
         for (const row of slotData) {
@@ -51,6 +47,7 @@ export default function Points({ userEmail }: Props) {
             position: row.player_position,
             price: row.player_price,
           };
+          if (row.is_captain) currentCaptainName = row.player_name;
         }
         setCurrentSlotPlayers(current);
       }
@@ -80,7 +77,7 @@ export default function Points({ userEmail }: Props) {
         setGameweeks(gwData.gameweeks);
         setCurrentGwIndex(gwData.gameweeks.length - 1);
       }
-      setCaptainName(teamData?.captain_name ?? null);
+      setCaptainName(currentCaptainName);
       setLoaded(true);
     });
   }, [userEmail]);

@@ -72,31 +72,33 @@ export default function Transfers({ userEmail }: Props) {
       const [{ data: slotData }, { data: teamData }] = await Promise.all([
         supabase
           .from("team_slots")
-          .select("slot_index, player_name, player_position, player_price")
+          .select("slot_index, player_name, player_position, player_price, is_captain")
           .eq("user_email", userEmail),
         supabase
           .from("user_teams")
-          .select("transfers_used, points_deducted, captain_name")
+          .select("transfers_used, points_deducted")
           .eq("user_email", userEmail)
           .single(),
       ]);
 
       if (slotData && slotData.length > 0) {
         const loaded: (Player | null)[] = Array(5).fill(null);
+        let captain: string | null = null;
         for (const row of slotData) {
           loaded[row.slot_index] = {
             name: row.player_name,
             position: row.player_position,
             price: row.player_price,
           };
+          if (row.is_captain) captain = row.player_name;
         }
         setSlotPlayers(loaded);
         setSavedSlotPlayers(loaded);
+        setCaptainName(captain);
       }
 
       setTransfersUsed(teamData?.transfers_used ?? 0);
       setPointsDeducted(teamData?.points_deducted ?? 0);
-      setCaptainName(teamData?.captain_name ?? null);
       setSlotsLoaded(true);
     })();
   }, [userEmail]);

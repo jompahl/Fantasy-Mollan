@@ -345,7 +345,7 @@ export default function Games() {
                       <span className="absolute -top-1 -right-1 text-xs leading-none">⚽</span>
                     )}
                   </button>
-                  <div className="mt-1 bg-black/35 rounded px-1.5 py-0.5 w-full">
+                  <div className="mt-1 bg-black/65 rounded px-1.5 py-0.5 w-full">
                     <span className="text-white text-[10px] font-semibold truncate block text-center">
                       {player.name}
                     </span>
