@@ -130,7 +130,7 @@ export default function Games() {
   }
 
   if (gameweeks.length === 0) {
-    return <p className="text-gray-400 text-sm">No calculated gameweeks found in Games 2026.</p>;
+    return <p className="text-gray-400 text-sm">No matches has been played yet</p>;
   }
 
   const currentGameweek = gameweeks[currentGwIndex];

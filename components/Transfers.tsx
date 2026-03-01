@@ -316,7 +316,7 @@ export default function Transfers({ userEmail }: Props) {
         <div className="w-full md:w-60 md:flex-shrink-0 md:sticky md:top-8 order-first md:order-last">
           {deadlineLocked && (
             <p className="text-sm text-red-600 mb-2">
-              The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked by admin
+              The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked
             </p>
           )}
           <p className="text-sm font-medium text-gray-600 mb-0.5">

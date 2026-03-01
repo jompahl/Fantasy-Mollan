@@ -228,7 +228,10 @@ export default function Stats() {
             </div>
 
             <div className="overflow-auto">
-              <table className="min-w-[1200px] w-full">
+              {gameweeks.length === 0 ? (
+                <p className="px-5 py-8 text-sm text-gray-500">No matches has been played yet</p>
+              ) : null}
+              {gameweeks.length > 0 && <table className="min-w-[1200px] w-full">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="px-3 py-2">
@@ -315,7 +318,7 @@ export default function Stats() {
                     );
                   })}
                 </tbody>
-              </table>
+              </table>}
             </div>
           </div>
         </div>
