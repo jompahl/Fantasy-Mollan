@@ -35,8 +35,9 @@ export default function League() {
           const snapshotSlots = (snapshots ?? []).filter(
             (s) => s.user_email === email && s.gameweek_number === gw.number
           );
-          const captainForGw =
-            snapshotSlots.find((s) => s.is_captain)?.player_name ?? team.captain_name;
+          const captainForGw = snapshotSlots.length > 0
+            ? (snapshotSlots.find((s) => s.is_captain)?.player_name ?? null)
+            : team.captain_name;
           const teamSlots =
             snapshotSlots.length > 0
               ? snapshotSlots

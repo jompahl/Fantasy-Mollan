@@ -98,7 +98,9 @@ export default function Points({ userEmail }: Props) {
 
   const gameweekStats: PlayerPoints[] = currentGameweek?.players ?? [];
   const captainForCurrentGw = currentGameweek
-    ? (snapshotCaptains.get(currentGameweek.number) ?? captainName)
+    ? (snapshots.has(currentGameweek.number)
+        ? (snapshotCaptains.get(currentGameweek.number) ?? null)
+        : captainName)
     : captainName;
 
   const slotPoints = slotPlayers.map((p) => {
