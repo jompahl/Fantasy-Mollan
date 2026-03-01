@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { Player } from "@/app/api/players/route";
+import type { Gameweek } from "@/app/api/gameweek/route";
 import Pitch, { SLOTS } from "@/components/Pitch";
+import PlayerHistory from "@/components/PlayerHistory";
 import { supabase } from "@/lib/supabase";
 import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
 
@@ -50,9 +52,12 @@ export default function Transfers({ userEmail }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [calculatedGwCount, setCalculatedGwCount] = useState<number | null>(null);
+  const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [transfersUsed, setTransfersUsed] = useState(0);
   const [pointsDeducted, setPointsDeducted] = useState(0);
   const [captainName, setCaptainName] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyPlayer, setHistoryPlayer] = useState<string | null>(null);
   const { isLocked: deadlineLocked } = useGameweekDeadlineLock();
 
   // Load players from sheet + number of calculated gameweeks
@@ -65,6 +70,7 @@ export default function Transfers({ userEmail }: Props) {
         if (playerData.error) throw new Error();
         setPlayers(playerData.players);
         setCalculatedGwCount(gwData.gameweeks?.length ?? 0);
+        setGameweeks(gwData.gameweeks ?? []);
       })
       .catch(() => setError(true));
   }, []);
@@ -130,11 +136,13 @@ export default function Transfers({ userEmail }: Props) {
     if (deadlineLocked) return;
     setActiveSlot(index);
     setSelecting(false);
+    setShowHistory(false);
   }
 
   function closeModal() {
     setActiveSlot(null);
     setSelecting(false);
+    setShowHistory(false);
   }
 
   function selectPlayer(player: Player) {
@@ -260,7 +268,11 @@ export default function Transfers({ userEmail }: Props) {
               <table className="w-full">
                 <tbody>
                   {group.map((player) => (
-                    <tr key={player.name} className="border-b border-gray-100">
+                    <tr
+                      key={player.name}
+                      className="border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => gameweeks.length > 0 && setHistoryPlayer(player.name)}
+                    >
                       <td className="py-2 pr-2">
                         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
                           {player.position}
@@ -339,16 +351,20 @@ export default function Transfers({ userEmail }: Props) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
-              {selecting && (
+              {(selecting || showHistory) && (
                 <button
-                  onClick={() => setSelecting(false)}
+                  onClick={() => { setSelecting(false); setShowHistory(false); }}
                   className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
                 >
                   ←
                 </button>
               )}
               <h3 className="font-semibold text-gray-900 flex-1">
-                {selecting ? "Select player" : SLOT_POSITION_LABEL[SLOTS[activeSlot].label]}
+                {selecting
+                  ? "Select player"
+                  : showHistory
+                  ? `${slotPlayers[activeSlot]?.name ?? "Player"} — History`
+                  : SLOT_POSITION_LABEL[SLOTS[activeSlot].label]}
               </h3>
               <button
                 onClick={closeModal}
@@ -377,6 +393,10 @@ export default function Transfers({ userEmail }: Props) {
                 ))}
               </ul>
               </>
+            ) : showHistory ? (
+              <div className="px-6 py-4">
+                <PlayerHistory playerName={slotPlayers[activeSlot]!.name} gameweeks={gameweeks} />
+              </div>
             ) : (
               <div className="px-6 py-5">
                 {slotPlayers[activeSlot] ? (
@@ -407,6 +427,14 @@ export default function Transfers({ userEmail }: Props) {
                 ) : (
                   <p className="text-gray-400 text-sm mb-5">No player selected</p>
                 )}
+                {slotPlayers[activeSlot] && gameweeks.length > 0 && (
+                  <button
+                    onClick={() => setShowHistory(true)}
+                    className="w-full mb-3 py-2.5 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Show history
+                  </button>
+                )}
                 <button
                   onClick={() => setSelecting(true)}
                   className="w-full bg-gray-900 text-white rounded-full py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors"
@@ -415,6 +443,32 @@ export default function Transfers({ userEmail }: Props) {
                 </button>
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+      {/* Player history modal */}
+      {historyPlayer !== null && createPortal(
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setHistoryPlayer(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 flex-1">{historyPlayer} — History</h3>
+              <button
+                onClick={() => setHistoryPlayer(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              <PlayerHistory playerName={historyPlayer} gameweeks={gameweeks} />
+            </div>
           </div>
         </div>,
         document.body

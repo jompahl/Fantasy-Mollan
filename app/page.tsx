@@ -13,9 +13,10 @@ import Games from "@/components/Games";
 import Help from "@/components/Help";
 import MyTeam from "@/components/MyTeam";
 import GameweekAdministration from "@/components/GameweekAdministration";
+import Stats from "@/components/Stats";
 
 const ADMIN_EMAIL = "johndahlberg14@gmail.com";
-const ALL_TABS = ["My Team", "Points", "Transfers", "League", "Games", "Help", "GW admin"] as const;
+const ALL_TABS = ["My Team", "Points", "Transfers", "League", "Games", "Stats", "Help", "GW admin"] as const;
 type Tab = (typeof ALL_TABS)[number];
 
 export default function Home() {
@@ -157,6 +158,7 @@ export default function Home() {
           {activeTab === "Transfers" && <Transfers userEmail={userEmail} />}
           {activeTab === "League" && <League />}
           {activeTab === "Games" && <Games />}
+          {activeTab === "Stats" && <Stats />}
           {activeTab === "Help" && <Help />}
           {activeTab === "GW admin" && isAdmin && <GameweekAdministration />}
         </main>
