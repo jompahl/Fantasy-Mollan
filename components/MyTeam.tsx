@@ -34,7 +34,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         .eq("user_email", userEmail),
       supabase
         .from("user_teams")
-        .select("points_deducted")
+        .select("points_deducted, joined_gameweek")
         .eq("user_email", userEmail)
         .single(),
       supabase
@@ -72,8 +72,10 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         setTripleCaptainActive(tcActive);
 
         if (!gwData.error && gwData.gameweeks?.length) {
+          const joinedGameweek: number | null = teamData?.joined_gameweek ?? null;
           let total = 0;
           for (const gw of gwData.gameweeks as Array<{ number: number; players: Array<{ name: string; points: number }> }>) {
+            if (joinedGameweek !== null && gw.number < joinedGameweek) continue;
             const gwSnapshots = snapshots.filter((s) => s.gameweek_number === gw.number);
             const teamSlots =
               gwSnapshots.length > 0

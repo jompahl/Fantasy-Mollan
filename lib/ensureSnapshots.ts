@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
  * Safe to call on every page load — it is a no-op when all snapshots exist.
  */
 export async function ensureSnapshots(userEmail: string): Promise<void> {
-  const [gwData, { data: existingSnapshots }, { data: teamSlots }] = await Promise.all([
+  const [gwData, { data: existingSnapshots }, { data: teamSlots }, { data: teamData }] = await Promise.all([
     fetch("/api/gameweek").then((r) => r.json()),
     supabase
       .from("gameweek_snapshots")
@@ -18,10 +18,17 @@ export async function ensureSnapshots(userEmail: string): Promise<void> {
       .from("team_slots")
       .select("slot_index, player_name, player_position, player_price, is_captain")
       .eq("user_email", userEmail),
+    supabase
+      .from("user_teams")
+      .select("joined_gameweek")
+      .eq("user_email", userEmail)
+      .single(),
   ]);
 
   const gameweeks: { number: number }[] = gwData.gameweeks ?? [];
   if (gameweeks.length === 0 || !teamSlots || teamSlots.length === 0) return;
+
+  const joinedGameweek: number | null = (teamData as { joined_gameweek?: number | null } | null)?.joined_gameweek ?? null;
 
   const alreadySnapshotted = new Set(
     (existingSnapshots ?? []).map((s: { gameweek_number: number }) => s.gameweek_number)
@@ -36,6 +43,7 @@ export async function ensureSnapshots(userEmail: string): Promise<void> {
   const rows: object[] = [];
   for (const gw of gameweeks) {
     if (alreadySnapshotted.has(gw.number)) continue;
+    if (joinedGameweek !== null && gw.number < joinedGameweek) continue;
     for (const slot of teamSlots) {
       const isCap = captainName !== null && slot.player_name === captainName;
       rows.push({

@@ -55,6 +55,8 @@ export default function Transfers({ userEmail }: Props) {
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [transfersUsed, setTransfersUsed] = useState(0);
   const [pointsDeducted, setPointsDeducted] = useState(0);
+  const [joinedGameweek, setJoinedGameweek] = useState<number | null>(null);
+  const [isNewUser, setIsNewUser] = useState(false);
   const [captainName, setCaptainName] = useState<string | null>(null);
   const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -86,11 +88,12 @@ export default function Transfers({ userEmail }: Props) {
           .eq("user_email", userEmail),
         supabase
           .from("user_teams")
-          .select("transfers_used, points_deducted")
+          .select("transfers_used, points_deducted, joined_gameweek")
           .eq("user_email", userEmail)
           .single(),
       ]);
 
+      if (!slotData || slotData.length === 0) setIsNewUser(true);
       if (slotData && slotData.length > 0) {
         const loaded: (Player | null)[] = Array(5).fill(null);
         let captain: string | null = null;
@@ -110,6 +113,7 @@ export default function Transfers({ userEmail }: Props) {
 
       setTransfersUsed(teamData?.transfers_used ?? 0);
       setPointsDeducted(teamData?.points_deducted ?? 0);
+      setJoinedGameweek(teamData?.joined_gameweek ?? null);
       setSlotsLoaded(true);
     })();
   }, [userEmail]);
@@ -121,10 +125,24 @@ export default function Transfers({ userEmail }: Props) {
 
   // null = still loading, Infinity = no gameweeks yet (unlimited), number = count
   const pendingChanges = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
-  const baseFreeTransfers: number | null =
+  // For late joiners, only count GWs played since their joined_gameweek.
+  // If joinedGameweek hasn't been set yet but the user has no saved team and GWs
+  // already exist, treat them as a first-time late joiner (0 GWs played → unlimited).
+  const isFirstTimeLateJoiner =
+    isNewUser &&
+    joinedGameweek === null &&
+    calculatedGwCount !== null &&
+    calculatedGwCount > 0;
+  const gwsPlayedSinceJoining: number | null =
     calculatedGwCount === null ? null
-    : calculatedGwCount === 0 ? Infinity
-    : Math.max(0, calculatedGwCount - transfersUsed);
+    : isFirstTimeLateJoiner ? 0
+    : joinedGameweek === null
+    ? calculatedGwCount
+    : gameweeks.filter((gw) => gw.number >= joinedGameweek).length;
+  const baseFreeTransfers: number | null =
+    gwsPlayedSinceJoining === null ? null
+    : gwsPlayedSinceJoining === 0 ? Infinity
+    : Math.max(0, gwsPlayedSinceJoining - transfersUsed);
   const freeTransfers: number | null =
     baseFreeTransfers === null ? null
     : baseFreeTransfers === Infinity ? Infinity
@@ -176,7 +194,8 @@ export default function Transfers({ userEmail }: Props) {
       );
 
       const snapshotRows = [];
-      for (let gw = 1; gw <= calculatedGwCount; gw++) {
+      const firstGw = joinedGameweek ?? 1;
+      for (let gw = firstGw; gw <= calculatedGwCount; gw++) {
         if (!alreadySnapshotted.has(gw)) {
           for (let i = 0; i < savedSlotPlayers.length; i++) {
             const p = savedSlotPlayers[i];
@@ -227,9 +246,17 @@ export default function Transfers({ userEmail }: Props) {
     await supabase.from("team_slots").delete().eq("user_email", userEmail);
     if (rows.length > 0) await supabase.from("team_slots").insert(rows);
 
+    // First-time save while GWs already exist — record which GW they start from
+    if (isNewUser && joinedGameweek === null && calculatedGwCount && calculatedGwCount > 0) {
+      const newJoinedGw = calculatedGwCount + 1;
+      await supabase.from("user_teams").update({ joined_gameweek: newJoinedGw }).eq("user_email", userEmail);
+      setJoinedGameweek(newJoinedGw);
+      setIsNewUser(false);
+    }
+
     // Only count FREE transfers used — extra transfers cost points but don't
     // reduce future free transfer allocation.
-    if (calculatedGwCount && calculatedGwCount > 0) {
+    if (gwsPlayedSinceJoining && gwsPlayedSinceJoining > 0) {
       const changes = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
       const freeUsed =
         baseFreeTransfers === Infinity ? 0 : Math.min(changes, baseFreeTransfers ?? 0);

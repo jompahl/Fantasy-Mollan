@@ -49,7 +49,7 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
       fetch("/api/gameweek").then((r) => r.json()),
       supabase
         .from("user_teams")
-        .select("points_deducted")
+        .select("points_deducted, joined_gameweek")
         .eq("user_email", userEmail)
         .single(),
     ]).then(([{ data: slotData }, { data: snapshotData }, playersData, gwData, { data: teamData }]) => {
@@ -96,13 +96,17 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
       }
 
       if (!gwData.error && gwData.gameweeks?.length > 0) {
-        setGameweeks(gwData.gameweeks);
-        setCurrentGwIndex(gwData.gameweeks.length - 1);
+        const joinedGameweek: number | null = teamData?.joined_gameweek ?? null;
+        const eligibleGameweeks = (gwData.gameweeks as Gameweek[]).filter(
+          (gw) => joinedGameweek === null || gw.number >= joinedGameweek
+        );
+        setGameweeks(eligibleGameweeks);
+        setCurrentGwIndex(Math.max(0, eligibleGameweeks.length - 1));
 
-        // Compute overall total across all GWs for the header callback
+        // Compute overall total across all eligible GWs for the header callback
         let overallTotal = 0;
         const allSnapshots = snapshotData ?? [];
-        for (const gw of gwData.gameweeks as Gameweek[]) {
+        for (const gw of eligibleGameweeks) {
           const gwSnapshots = allSnapshots.filter((s) => s.gameweek_number === gw.number);
           const slots = gwSnapshots.length > 0 ? gwSnapshots : (slotData ?? []);
           const capName = gwSnapshots.length > 0
