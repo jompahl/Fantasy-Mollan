@@ -34,6 +34,8 @@ interface Props {
   slotGoals?: (number | null)[];
   slotAssists?: (number | null)[];
   slotCaptains?: (boolean | null)[];
+  slotYellowCards?: (number | null)[];
+  slotRedCards?: (number | null)[];
 }
 
 export default function Pitch({
@@ -44,6 +46,8 @@ export default function Pitch({
   slotGoals = [],
   slotAssists = [],
   slotCaptains = [],
+  slotYellowCards = [],
+  slotRedCards = [],
 }: Props) {
   return (
     <div>
@@ -80,6 +84,8 @@ export default function Pitch({
           const goals = slotGoals[i] ?? 0;
           const assists = slotAssists[i] ?? 0;
           const isCaptain = slotCaptains[i] ?? false;
+          const yellowCards = slotYellowCards[i] ?? 0;
+          const redCards = slotRedCards[i] ?? 0;
           return (
             <button
               key={i}
@@ -102,6 +108,12 @@ export default function Pitch({
                 )}
                 {filled && goals > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 text-sm leading-none">⚽</span>
+                )}
+                {filled && yellowCards > 0 && (
+                  <span className="absolute -bottom-1.5 -left-1.5 w-2.5 h-3.5 rounded-[2px] bg-yellow-400 border border-yellow-500 shadow-sm" />
+                )}
+                {filled && redCards > 0 && (
+                  <span className="absolute -bottom-1.5 -right-1.5 w-2.5 h-3.5 rounded-[2px] bg-red-500 border border-red-600 shadow-sm" />
                 )}
               </div>
               <div className="bg-black/30 rounded px-2 py-0.5 max-w-[72px]">

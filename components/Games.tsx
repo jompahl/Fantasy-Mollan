@@ -12,6 +12,8 @@ interface PositionedPlayer {
   points: number;
   goals: number;
   assists: number;
+  yellowCards: number;
+  redCards: number;
   image: string;
   imageRotation: number;
   hasCustomImage: boolean;
@@ -67,6 +69,8 @@ function buildPositions(players: PlayerWithImage[]): PositionedPlayer[] {
       points: player.points,
       goals: player.goals,
       assists: player.assists,
+      yellowCards: player.yellowCards,
+      redCards: player.redCards,
       image: player.image,
       imageRotation: player.imageRotation,
       hasCustomImage: player.hasCustomImage,
@@ -292,6 +296,12 @@ export default function Games() {
               {player.goals > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 text-sm leading-none">⚽</span>
               )}
+              {player.yellowCards > 0 && (
+                <span className="absolute -bottom-1.5 -left-1.5 w-2.5 h-3.5 rounded-[2px] bg-yellow-400 border border-yellow-500 shadow-sm" />
+              )}
+              {player.redCards > 0 && (
+                <span className="absolute -bottom-1.5 -right-1.5 w-2.5 h-3.5 rounded-[2px] bg-red-500 border border-red-600 shadow-sm" />
+              )}
             </button>
             <div className="mt-1 bg-black/35 rounded px-2 py-0.5 max-w-[120px]">
               <span className="text-white text-xs font-semibold truncate block text-center">
@@ -343,6 +353,12 @@ export default function Games() {
                     )}
                     {player.goals > 0 && (
                       <span className="absolute -top-1 -right-1 text-xs leading-none">⚽</span>
+                    )}
+                    {player.yellowCards > 0 && (
+                      <span className="absolute -bottom-1 -left-1 w-2 h-3 rounded-[2px] bg-yellow-400 border border-yellow-500 shadow-sm" />
+                    )}
+                    {player.redCards > 0 && (
+                      <span className="absolute -bottom-1 -right-1 w-2 h-3 rounded-[2px] bg-red-500 border border-red-600 shadow-sm" />
                     )}
                   </button>
                   <div className="mt-1 bg-black/65 rounded px-1.5 py-0.5 w-full">

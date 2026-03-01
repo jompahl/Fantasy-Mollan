@@ -23,6 +23,7 @@ export default function Points({ userEmail }: Props) {
   const [snapshotCaptains, setSnapshotCaptains] = useState<Map<number, string>>(new Map());
   const [currentGwIndex, setCurrentGwIndex] = useState<number>(0);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -117,6 +118,16 @@ export default function Points({ userEmail }: Props) {
     const stat = gameweekStats.find((s) => s.name === p.name);
     return stat?.assists ?? 0;
   });
+  const slotYellowCards = slotPlayers.map((p) => {
+    if (!p) return null;
+    const stat = gameweekStats.find((s) => s.name === p.name);
+    return stat?.yellowCards ?? 0;
+  });
+  const slotRedCards = slotPlayers.map((p) => {
+    if (!p) return null;
+    const stat = gameweekStats.find((s) => s.name === p.name);
+    return stat?.redCards ?? 0;
+  });
 
   const totalPoints = slotPoints.reduce<number>((sum, pts) => sum + (pts ?? 0), 0);
   const selectedPlayer = selectedSlotIndex !== null ? slotPlayers[selectedSlotIndex] : null;
@@ -163,29 +174,39 @@ export default function Points({ userEmail }: Props) {
         Total points: {totalPoints}
       </p>
       <Pitch
-        onSlotClick={setSelectedSlotIndex}
+        onSlotClick={(i) => { setSelectedSlotIndex(i); setShowHistory(false); }}
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
         slotPoints={slotPoints}
         slotGoals={slotGoals}
         slotAssists={slotAssists}
+        slotYellowCards={slotYellowCards}
+        slotRedCards={slotRedCards}
         slotCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw : false))}
       />
 
       {selectedSlotIndex !== null && (
         <div
           className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
-          onClick={() => setSelectedSlotIndex(null)}
+          onClick={() => { setSelectedSlotIndex(null); setShowHistory(false); }}
         >
           <div
             className="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-gray-900">
-                {selectedPlayer?.name ?? "Empty slot"}
+              {showHistory ? (
+                <button
+                  onClick={() => setShowHistory(false)}
+                  className="text-gray-400 hover:text-gray-600 text-lg leading-none mr-2"
+                >
+                  ←
+                </button>
+              ) : null}
+              <h3 className="text-base font-semibold text-gray-900 flex-1">
+                {showHistory ? `${selectedPlayer?.name ?? "Player"} — History` : (selectedPlayer?.name ?? "Empty slot")}
               </h3>
               <button
-                onClick={() => setSelectedSlotIndex(null)}
+                onClick={() => { setSelectedSlotIndex(null); setShowHistory(false); }}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none"
               >
                 ×
@@ -195,6 +216,71 @@ export default function Points({ userEmail }: Props) {
             <div className="px-5 py-4">
               {!selectedPlayer ? (
                 <p className="text-sm text-gray-500">No player selected in this slot.</p>
+              ) : showHistory ? (
+                <div className="max-h-80 overflow-y-auto -mx-5 px-5">
+                  {/* Header */}
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <span className="w-7 text-xs font-semibold text-gray-400 uppercase tracking-wider">GW</span>
+                    <span className="w-24 flex-shrink-0" />
+                    <span className="w-14 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Result</span>
+                    <span className="flex-1 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Stats</span>
+                    <span className="w-7 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Pts</span>
+                  </div>
+                  {gameweeks.map((gw) => {
+                    const stat = gw.players.find((p) => p.name === selectedPlayer.name);
+                    const [rawHome, rawAway] = (gw.score ?? "").split("-").map(Number);
+                    const mollanGoals = gw.homeAway === "home" ? rawHome : rawAway;
+                    const oppGoals = gw.homeAway === "home" ? rawAway : rawHome;
+                    const resultClass = !gw.score
+                      ? "bg-gray-100 text-gray-500"
+                      : mollanGoals > oppGoals
+                      ? "bg-green-500 text-white"
+                      : mollanGoals < oppGoals
+                      ? "bg-red-500 text-white"
+                      : "bg-gray-200 text-gray-600";
+                    const oppAbbrev = gw.opponent ? gw.opponent.slice(0, 3).toUpperCase() : "—";
+                    const homeAwayLabel = gw.homeAway === "home" ? "H" : "A";
+                    return (
+                      <div key={gw.number} className="flex items-center gap-2 py-2.5 border-b border-gray-100">
+                        {/* GW */}
+                        <span className="w-7 text-xs text-gray-400 flex-shrink-0">{gw.number}</span>
+                        {/* Opponent */}
+                        <div className="flex items-center gap-1 w-24 flex-shrink-0">
+                          {gw.opponentImage ? (
+                            <img src={gw.opponentImage} alt={gw.opponent} className="w-5 h-5 object-contain flex-shrink-0" />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                              <span className="text-[7px] font-bold text-gray-400">{oppAbbrev.slice(0, 2)}</span>
+                            </div>
+                          )}
+                          <span className="text-xs text-gray-900 font-medium truncate">
+                            {oppAbbrev} <span className="text-gray-400 font-normal">({homeAwayLabel})</span>
+                          </span>
+                        </div>
+                        {/* Result */}
+                        <span className={`w-12 text-center text-xs font-bold px-1 py-0.5 rounded flex-shrink-0 ${resultClass}`}>
+                          {gw.score ?? "—"}
+                        </span>
+                        {/* Stats */}
+                        <div className="flex-1 text-right">
+                          {stat ? (
+                            <span className="text-xs text-gray-400 leading-tight">
+                              {stat.minutes}&apos;
+                              {stat.goals > 0 && <> · {stat.goals}G</>}
+                              {stat.assists > 0 && <> · {stat.assists}A</>}
+                              {stat.yellowCards > 0 && <> · <span className="inline-block w-1.5 h-2 rounded-[1px] bg-yellow-400 align-middle" /></>}
+                              {stat.redCards > 0 && <> · <span className="inline-block w-1.5 h-2 rounded-[1px] bg-red-500 align-middle" /></>}
+                            </span>
+                          ) : <span className="text-xs text-gray-300">—</span>}
+                        </div>
+                        {/* Pts */}
+                        <span className="w-7 text-right text-sm font-semibold text-gray-900 flex-shrink-0">
+                          {stat ? stat.points : "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : !selectedStat ? (
                 <p className="text-sm text-gray-500">No game data found for this player in this gameweek.</p>
               ) : (
@@ -221,6 +307,12 @@ export default function Points({ userEmail }: Props) {
                   ) : (
                     <p className="text-sm text-gray-500">No scoring events for this gameweek.</p>
                   )}
+                  <button
+                    onClick={() => setShowHistory(true)}
+                    className="mt-4 w-full py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Show history
+                  </button>
                 </>
               )}
             </div>
