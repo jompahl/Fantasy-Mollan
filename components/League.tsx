@@ -35,10 +35,13 @@ export default function League() {
           const snapshotSlots = (snapshots ?? []).filter(
             (s) => s.user_email === email && s.gameweek_number === gw.number
           );
-          const currentCaptainSlot = (slots ?? []).find((s) => s.user_email === email && s.is_captain);
+          const currentCaptainSlot = (slots ?? []).find((s) => s.user_email === email && (s.is_captain === "CAPTAIN" || s.is_captain === "TRIPLE_CAPTAIN"));
           const captainForGw = snapshotSlots.length > 0
-            ? (snapshotSlots.find((s) => s.is_captain)?.player_name ?? null)
+            ? (snapshotSlots.find((s) => s.is_captain === "CAPTAIN" || s.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null)
             : (currentCaptainSlot?.player_name ?? null);
+          const tcActiveForGw = snapshotSlots.length > 0
+            ? snapshotSlots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
+            : currentCaptainSlot?.is_captain === "TRIPLE_CAPTAIN";
           const teamSlots =
             snapshotSlots.length > 0
               ? snapshotSlots
@@ -47,7 +50,8 @@ export default function League() {
           for (const slot of teamSlots) {
             const stat = gw.players.find((p) => p.name === slot.player_name);
             const points = stat?.points ?? 0;
-            totalPoints += slot.player_name === captainForGw ? points * 2 : points;
+            const multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+            totalPoints += points * multiplier;
           }
         }
 

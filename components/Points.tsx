@@ -5,6 +5,7 @@ import Image from "next/image";
 import Pitch from "@/components/Pitch";
 import PlayerHistory from "@/components/PlayerHistory";
 import { supabase } from "@/lib/supabase";
+import { ensureSnapshots } from "@/lib/ensureSnapshots";
 import type { PlayerPoints, Gameweek } from "@/app/api/gameweek/route";
 import type { Player } from "@/app/api/players/route";
 
@@ -16,14 +17,17 @@ interface SlotPlayer {
 
 interface Props {
   userEmail: string;
+  onTotalPointsChange?: (points: number) => void;
 }
 
-export default function Points({ userEmail }: Props) {
+export default function Points({ userEmail, onTotalPointsChange }: Props) {
   const [currentSlotPlayers, setCurrentSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
   const [snapshots, setSnapshots] = useState<Map<number, (SlotPlayer | null)[]>>(new Map());
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [captainName, setCaptainName] = useState<string | null>(null);
+  const [currentTcActive, setCurrentTcActive] = useState(false);
   const [snapshotCaptains, setSnapshotCaptains] = useState<Map<number, string>>(new Map());
+  const [snapshotTripleCaptains, setSnapshotTripleCaptains] = useState<Set<number>>(new Set());
   const [playerImages, setPlayerImages] = useState<Map<string, string>>(new Map());
   const [playerImageRotations, setPlayerImageRotations] = useState<Map<string, number>>(new Map());
   const [currentGwIndex, setCurrentGwIndex] = useState<number>(0);
@@ -32,7 +36,7 @@ export default function Points({ userEmail }: Props) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    Promise.all([
+    ensureSnapshots(userEmail).then(() => Promise.all([
       supabase
         .from("team_slots")
         .select("slot_index, player_name, player_position, player_price, is_captain")
@@ -43,7 +47,12 @@ export default function Points({ userEmail }: Props) {
         .eq("user_email", userEmail),
       fetch("/api/players").then((r) => r.json() as Promise<{ players?: Player[]; error?: string }>),
       fetch("/api/gameweek").then((r) => r.json()),
-    ]).then(([{ data: slotData }, { data: snapshotData }, playersData, gwData]) => {
+      supabase
+        .from("user_teams")
+        .select("points_deducted")
+        .eq("user_email", userEmail)
+        .single(),
+    ]).then(([{ data: slotData }, { data: snapshotData }, playersData, gwData, { data: teamData }]) => {
       // Current team (fallback when no snapshot exists)
       let currentCaptainName: string | null = null;
       if (slotData && slotData.length > 0) {
@@ -54,7 +63,8 @@ export default function Points({ userEmail }: Props) {
             position: row.player_position,
             price: row.player_price,
           };
-          if (row.is_captain) currentCaptainName = row.player_name;
+          if (row.is_captain === "CAPTAIN" || row.is_captain === "TRIPLE_CAPTAIN") currentCaptainName = row.player_name;
+          if (row.is_captain === "TRIPLE_CAPTAIN") setCurrentTcActive(true);
         }
         setCurrentSlotPlayers(current);
       }
@@ -63,6 +73,7 @@ export default function Points({ userEmail }: Props) {
       if (snapshotData && snapshotData.length > 0) {
         const map = new Map<number, (SlotPlayer | null)[]>();
         const captainMap = new Map<number, string>();
+        const tcSet = new Set<number>();
         for (const row of snapshotData) {
           if (!map.has(row.gameweek_number)) {
             map.set(row.gameweek_number, Array(5).fill(null));
@@ -72,17 +83,43 @@ export default function Points({ userEmail }: Props) {
             position: row.player_position,
             price: row.player_price,
           };
-          if (row.is_captain) {
+          if (row.is_captain === "CAPTAIN" || row.is_captain === "TRIPLE_CAPTAIN") {
             captainMap.set(row.gameweek_number, row.player_name);
+          }
+          if (row.is_captain === "TRIPLE_CAPTAIN") {
+            tcSet.add(row.gameweek_number);
           }
         }
         setSnapshots(map);
+        setSnapshotTripleCaptains(tcSet);
         setSnapshotCaptains(captainMap);
       }
 
       if (!gwData.error && gwData.gameweeks?.length > 0) {
         setGameweeks(gwData.gameweeks);
         setCurrentGwIndex(gwData.gameweeks.length - 1);
+
+        // Compute overall total across all GWs for the header callback
+        let overallTotal = 0;
+        const allSnapshots = snapshotData ?? [];
+        for (const gw of gwData.gameweeks as Gameweek[]) {
+          const gwSnapshots = allSnapshots.filter((s) => s.gameweek_number === gw.number);
+          const slots = gwSnapshots.length > 0 ? gwSnapshots : (slotData ?? []);
+          const capName = gwSnapshots.length > 0
+            ? (gwSnapshots.find((s) => s.is_captain === "CAPTAIN" || s.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null)
+            : currentCaptainName;
+          const tcForGw = gwSnapshots.length > 0
+            ? gwSnapshots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
+            : (slotData ?? []).some((s) => s.is_captain === "TRIPLE_CAPTAIN");
+          for (const slot of slots) {
+            const stat = gw.players.find((p) => p.name === slot.player_name);
+            const base = stat?.points ?? 0;
+            const multiplier = slot.player_name === capName ? (tcForGw ? 3 : 2) : 1;
+            overallTotal += base * multiplier;
+          }
+        }
+        overallTotal -= teamData?.points_deducted ?? 0;
+        onTotalPointsChange?.(overallTotal);
       }
 
       const imageMap = new Map<string, string>();
@@ -97,7 +134,7 @@ export default function Points({ userEmail }: Props) {
 
       setCaptainName(currentCaptainName);
       setLoaded(true);
-    });
+    }));
   }, [userEmail]);
 
   if (!loaded) {
@@ -118,11 +155,18 @@ export default function Points({ userEmail }: Props) {
         : captainName)
     : captainName;
 
+  const hasSnapshotForGw = currentGameweek ? snapshots.has(currentGameweek.number) : false;
+  const tcActiveForCurrentGw = currentGameweek
+    ? snapshotTripleCaptains.has(currentGameweek.number) || (!hasSnapshotForGw && currentTcActive)
+    : false;
   const slotPoints = slotPlayers.map((p) => {
     if (!p) return null;
     const stat = gameweekStats.find((s) => s.name === p.name);
     const basePoints = stat?.points ?? 0;
-    return captainForCurrentGw && p.name === captainForCurrentGw ? basePoints * 2 : basePoints;
+    if (captainForCurrentGw && p.name === captainForCurrentGw) {
+      return basePoints * (tcActiveForCurrentGw ? 3 : 2);
+    }
+    return basePoints;
   });
 
   const slotGoals = slotPlayers.map((p) => {
@@ -166,7 +210,7 @@ export default function Points({ userEmail }: Props) {
     ? [
         ...selectedStat.breakdown,
         ...(selectedIsCaptain
-          ? [{ label: "Captain bonus (double points)", value: true, points: selectedStat.points }]
+          ? [{ label: tcActiveForCurrentGw ? "Triple Captain bonus (triple points)" : "Captain bonus (double points)", value: true, points: tcActiveForCurrentGw ? selectedStat.points * 2 : selectedStat.points }]
           : []),
       ]
     : [];
@@ -207,6 +251,7 @@ export default function Points({ userEmail }: Props) {
         slotYellowCards={slotYellowCards}
         slotRedCards={slotRedCards}
         slotCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw : false))}
+        slotTripleCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw && tcActiveForCurrentGw : false))}
       />
 
       {selectedSlotIndex !== null && (

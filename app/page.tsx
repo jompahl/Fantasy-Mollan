@@ -24,6 +24,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("My Team");
   const [menuOpen, setMenuOpen] = useState(false);
   const [myTeamTotalPoints, setMyTeamTotalPoints] = useState<number>(0);
+  const [pointsTotalPoints, setPointsTotalPoints] = useState<number>(0);
   const { teamName, saveTeamName } = useTeamName(session?.user?.email);
   const userEmail = session?.user?.email ?? null;
   const isAdmin = userEmail === ADMIN_EMAIL;
@@ -142,17 +143,20 @@ export default function Home() {
         <main className="flex-1 px-6 py-8">
           {activeTab === "My Team" && (
             <>
-              <div className="mb-4 flex items-center gap-3">
+              <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
-                <span className="text-2xl font-semibold text-gray-900">{myTeamTotalPoints}</span>
+                <span className="text-2xl font-semibold text-gray-900">{myTeamTotalPoints} pts</span>
               </div>
               <MyTeam userEmail={userEmail} onTotalPointsChange={setMyTeamTotalPoints} />
             </>
           )}
           {activeTab === "Points" && (
             <>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">{teamName}</h2>
-              <Points userEmail={userEmail} />
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
+                <span className="text-2xl font-semibold text-gray-900">{pointsTotalPoints} pts</span>
+              </div>
+              <Points userEmail={userEmail} onTotalPointsChange={setPointsTotalPoints} />
             </>
           )}
           {activeTab === "Transfers" && <Transfers userEmail={userEmail} />}

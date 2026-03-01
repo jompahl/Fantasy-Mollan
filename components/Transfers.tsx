@@ -56,6 +56,7 @@ export default function Transfers({ userEmail }: Props) {
   const [transfersUsed, setTransfersUsed] = useState(0);
   const [pointsDeducted, setPointsDeducted] = useState(0);
   const [captainName, setCaptainName] = useState<string | null>(null);
+  const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyPlayer, setHistoryPlayer] = useState<string | null>(null);
   const { isLocked: deadlineLocked } = useGameweekDeadlineLock();
@@ -99,7 +100,8 @@ export default function Transfers({ userEmail }: Props) {
             position: row.player_position,
             price: row.player_price,
           };
-          if (row.is_captain) captain = row.player_name;
+          if (row.is_captain === "CAPTAIN" || row.is_captain === "TRIPLE_CAPTAIN") captain = row.player_name;
+          if (row.is_captain === "TRIPLE_CAPTAIN") setTripleCaptainActive(true);
         }
         setSlotPlayers(loaded);
         setSavedSlotPlayers(loaded);
@@ -160,6 +162,8 @@ export default function Transfers({ userEmail }: Props) {
     if (deadlineLocked) return;
     setSaving(true);
 
+    let tcWasStamped = false;
+
     // Snapshot the current saved team for any calculated GWs that don't have one yet
     if (calculatedGwCount && calculatedGwCount > 0) {
       const { data: existingSnapshots } = await supabase
@@ -177,6 +181,7 @@ export default function Transfers({ userEmail }: Props) {
           for (let i = 0; i < savedSlotPlayers.length; i++) {
             const p = savedSlotPlayers[i];
             if (p) {
+              const isCap = captainName ? p.name === captainName : false;
               snapshotRows.push({
                 user_email: userEmail,
                 gameweek_number: gw,
@@ -184,20 +189,39 @@ export default function Transfers({ userEmail }: Props) {
                 player_name: p.name,
                 player_position: p.position,
                 player_price: p.price,
-                is_captain: captainName ? p.name === captainName : false,
+                is_captain: isCap ? (tripleCaptainActive ? "TRIPLE_CAPTAIN" : "CAPTAIN") : "NOT_CAPTAIN",
               });
             }
           }
         }
       }
 
+      tcWasStamped = snapshotRows.some((r) => r.is_captain === "TRIPLE_CAPTAIN");
+
       if (snapshotRows.length > 0) {
         await supabase.from("gameweek_snapshots").insert(snapshotRows);
+      }
+
+      // TC chip is now consumed — reset captain slot back to normal in team_slots
+      if (tcWasStamped) {
+        await supabase
+          .from("team_slots")
+          .update({ is_captain: "CAPTAIN" })
+          .eq("user_email", userEmail)
+          .eq("is_captain", "TRIPLE_CAPTAIN");
+        setTripleCaptainActive(false);
       }
     }
 
     const rows = slotPlayers
-      .map((p, i) => p ? { user_email: userEmail, slot_index: i, player_name: p.name, player_position: p.position, player_price: p.price } : null)
+      .map((p, i) => p ? {
+        user_email: userEmail,
+        slot_index: i,
+        player_name: p.name,
+        player_position: p.position,
+        player_price: p.price,
+        is_captain: p.name === captainName ? ((tripleCaptainActive && !tcWasStamped) ? "TRIPLE_CAPTAIN" : "CAPTAIN") : "NOT_CAPTAIN",
+      } : null)
       .filter(Boolean);
 
     await supabase.from("team_slots").delete().eq("user_email", userEmail);

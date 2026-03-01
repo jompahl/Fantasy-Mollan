@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import Pitch from "@/components/Pitch";
 import { supabase } from "@/lib/supabase";
 import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
+import { ensureSnapshots } from "@/lib/ensureSnapshots";
+
+type CaptainRole = "CAPTAIN" | "TRIPLE_CAPTAIN" | "NOT_CAPTAIN";
 
 interface SlotPlayer {
   name: string;
@@ -17,12 +20,14 @@ interface Props {
 export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
   const [slotPlayers, setSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
   const [captainSlotIndex, setCaptainSlotIndex] = useState<number | null>(null);
+  const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
+  const [tripleCaptainGw, setTripleCaptainGw] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savingCaptain, setSavingCaptain] = useState(false);
   const { isLocked } = useGameweekDeadlineLock();
 
   useEffect(() => {
-    Promise.all([
+    ensureSnapshots(userEmail).then(() => Promise.all([
       supabase
         .from("team_slots")
         .select("slot_index, player_name, is_captain")
@@ -44,19 +49,27 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             gameweek_number: number;
             slot_index: number;
             player_name: string;
-            is_captain?: boolean;
+            is_captain?: string | null;
           }> | null) ?? [];
+
+        const tcSnapshot = snapshots.find((s) => s.is_captain === "TRIPLE_CAPTAIN");
+        setTripleCaptainGw(tcSnapshot?.gameweek_number ?? null);
 
         const current: (SlotPlayer | null)[] = Array(5).fill(null);
         let captainIdx: number | null = null;
+        let tcActive = false;
         if (slotData && slotData.length > 0) {
           for (const row of slotData) {
             current[row.slot_index] = { name: row.player_name };
-            if (row.is_captain) captainIdx = row.slot_index;
+            if (row.is_captain === "CAPTAIN" || row.is_captain === "TRIPLE_CAPTAIN") {
+              captainIdx = row.slot_index;
+            }
+            if (row.is_captain === "TRIPLE_CAPTAIN") tcActive = true;
           }
           setSlotPlayers(current);
         }
         setCaptainSlotIndex(captainIdx);
+        setTripleCaptainActive(tcActive);
 
         if (!gwData.error && gwData.gameweeks?.length) {
           let total = 0;
@@ -65,16 +78,20 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             const teamSlots =
               gwSnapshots.length > 0
                 ? gwSnapshots
-                : (slotData ?? []).map((s) => ({ player_name: s.player_name, is_captain: s.is_captain ?? false }));
+                : (slotData ?? []).map((s) => ({ player_name: s.player_name, is_captain: s.is_captain ?? "NOT_CAPTAIN" }));
 
             const captainForGw = gwSnapshots.length > 0
-              ? (gwSnapshots.find((s) => s.is_captain)?.player_name ?? null)
+              ? (gwSnapshots.find((s) => s.is_captain === "CAPTAIN" || s.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null)
               : (captainIdx !== null ? current[captainIdx]?.name ?? null : null);
+            const tcActiveForGw = gwSnapshots.length > 0
+              ? gwSnapshots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
+              : tcActive;
 
             for (const slot of teamSlots) {
               const stat = gw.players.find((p) => p.name === slot.player_name);
               const base = stat?.points ?? 0;
-              total += slot.player_name === captainForGw ? base * 2 : base;
+              const multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+              total += base * multiplier;
             }
           }
           total -= teamData?.points_deducted ?? 0;
@@ -85,8 +102,20 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
 
         setLoaded(true);
       }
-    );
+    ));
   }, [userEmail, onTotalPointsChange]);
+
+  async function toggleTripleCaptain() {
+    if (isLocked || tripleCaptainGw !== null || captainSlotIndex === null) return;
+    const next = !tripleCaptainActive;
+    const newRole: CaptainRole = next ? "TRIPLE_CAPTAIN" : "CAPTAIN";
+    setTripleCaptainActive(next);
+    await supabase
+      .from("team_slots")
+      .update({ is_captain: newRole })
+      .eq("user_email", userEmail)
+      .eq("slot_index", captainSlotIndex);
+  }
 
   async function selectCaptain(slotIndex: number) {
     if (isLocked) return;
@@ -94,6 +123,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
     if (!slot) return;
 
     const previousCaptainName = captainSlotIndex !== null ? slotPlayers[captainSlotIndex]?.name ?? null : null;
+    const previousRole: CaptainRole = tripleCaptainActive ? "TRIPLE_CAPTAIN" : "CAPTAIN";
     setCaptainSlotIndex(slotIndex);
     setSavingCaptain(true);
 
@@ -118,7 +148,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         player_name: string;
         player_position: string;
         player_price: number;
-        is_captain?: boolean | null;
+        is_captain?: string | null;
       }[]>();
       for (const row of existingSnapshots ?? []) {
         if (!snapshotByGw.has(row.gameweek_number)) snapshotByGw.set(row.gameweek_number, []);
@@ -129,6 +159,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
       for (const gw of calculatedGameweeks) {
         if (!snapshotByGw.has(gw.number)) {
           for (const row of teamSlots ?? []) {
+            const isCap = previousCaptainName !== null && row.player_name === previousCaptainName;
             insertRows.push({
               user_email: userEmail,
               gameweek_number: gw.number,
@@ -136,7 +167,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
               player_name: row.player_name,
               player_position: row.player_position,
               player_price: row.player_price,
-              is_captain: previousCaptainName !== null && row.player_name === previousCaptainName,
+              is_captain: isCap ? previousRole : "NOT_CAPTAIN",
             });
           }
         }
@@ -157,14 +188,14 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
 
         await supabase
           .from("gameweek_snapshots")
-          .update({ is_captain: false })
+          .update({ is_captain: "NOT_CAPTAIN" })
           .eq("user_email", userEmail)
           .eq("gameweek_number", gwNumber);
 
         if (previousCaptainName) {
           await supabase
             .from("gameweek_snapshots")
-            .update({ is_captain: true })
+            .update({ is_captain: previousRole })
             .eq("user_email", userEmail)
             .eq("gameweek_number", gwNumber)
             .eq("player_name", previousCaptainName);
@@ -175,11 +206,11 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
     // Update team_slots: clear all captains then set the new one
     await supabase
       .from("team_slots")
-      .update({ is_captain: false })
+      .update({ is_captain: "NOT_CAPTAIN" })
       .eq("user_email", userEmail);
     const { error } = await supabase
       .from("team_slots")
-      .update({ is_captain: true })
+      .update({ is_captain: tripleCaptainActive ? "TRIPLE_CAPTAIN" : "CAPTAIN" })
       .eq("user_email", userEmail)
       .eq("slot_index", slotIndex);
     if (error) {
@@ -208,6 +239,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         onSlotClick={isLocked ? undefined : selectCaptain}
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
         slotCaptains={slotPlayers.map((_, i) => i === captainSlotIndex)}
+        slotTripleCaptains={slotPlayers.map((_, i) => i === captainSlotIndex && tripleCaptainActive)}
       />
       <p className="mt-3 text-sm text-gray-600">
         Captain:{" "}
@@ -218,6 +250,28 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
       {savingCaptain && (
         <p className="text-xs text-gray-400 mt-1">Saving captain…</p>
       )}
+      <div className="mt-4">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Chips</p>
+        <button
+          onClick={toggleTripleCaptain}
+          disabled={isLocked || tripleCaptainGw !== null || captainSlotIndex === null}
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-medium transition-colors disabled:cursor-not-allowed
+            ${tripleCaptainGw !== null
+              ? "border-gray-200 bg-gray-50 text-gray-400"
+              : tripleCaptainActive
+              ? "border-yellow-400 bg-yellow-50 text-yellow-800"
+              : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold text-yellow-900 bg-yellow-300 rounded-full px-1.5 py-0.5 leading-none text-[11px]">TC</span>
+            <span>Triple Captain</span>
+          </div>
+          <span className="text-xs">
+            {tripleCaptainGw !== null ? `Used in GW ${tripleCaptainGw}` : tripleCaptainActive ? "Active" : "Play chip"}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

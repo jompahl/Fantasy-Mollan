@@ -34,6 +34,7 @@ interface Props {
   slotGoals?: (number | null)[];
   slotAssists?: (number | null)[];
   slotCaptains?: (boolean | null)[];
+  slotTripleCaptains?: (boolean | null)[];
   slotYellowCards?: (number | null)[];
   slotRedCards?: (number | null)[];
 }
@@ -46,6 +47,7 @@ export default function Pitch({
   slotGoals = [],
   slotAssists = [],
   slotCaptains = [],
+  slotTripleCaptains = [],
   slotYellowCards = [],
   slotRedCards = [],
 }: Props) {
@@ -84,6 +86,7 @@ export default function Pitch({
           const goals = slotGoals[i] ?? 0;
           const assists = slotAssists[i] ?? 0;
           const isCaptain = slotCaptains[i] ?? false;
+          const isTripleCaptain = slotTripleCaptains[i] ?? false;
           const yellowCards = slotYellowCards[i] ?? 0;
           const redCards = slotRedCards[i] ?? 0;
           return (
@@ -103,7 +106,7 @@ export default function Pitch({
                 )}
                 {filled && isCaptain && (
                   <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-yellow-900 bg-yellow-300 rounded-full px-1 py-0.5 leading-none shadow-sm">
-                    C
+                    {isTripleCaptain ? "TC" : "C"}
                   </span>
                 )}
                 {filled && goals > 0 && (
