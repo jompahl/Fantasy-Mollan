@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import type { Player } from "@/app/api/players/route";
 import Pitch, { SLOTS } from "@/components/Pitch";
 import { supabase } from "@/lib/supabase";
@@ -234,6 +235,13 @@ export default function Transfers({ userEmail }: Props) {
         return !slotPlayers.some((sp, i) => i !== activeSlot && sp?.name === p.name);
       })
     : [];
+  const playerByName = new Map(players.map((p) => [p.name, p]));
+  const activeSlotPlayer = activeSlot !== null ? slotPlayers[activeSlot] : null;
+  const activePlayerMeta = activeSlotPlayer ? playerByName.get(activeSlotPlayer.name) : null;
+  const activePlayerImage = activePlayerMeta?.image ?? "/avatar.webp";
+  const activePlayerHasCustomImage = Boolean(activePlayerMeta?.image);
+  const activePlayerImageRotation =
+    typeof activePlayerMeta?.imageRotation === "number" ? activePlayerMeta.imageRotation : 0;
 
   return (
     <>
@@ -364,6 +372,24 @@ export default function Transfers({ userEmail }: Props) {
               <div className="px-6 py-5">
                 {slotPlayers[activeSlot] ? (
                   <div className="mb-5">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-200 bg-white mb-2">
+                      <Image
+                        src={activePlayerImage}
+                        alt={slotPlayers[activeSlot]!.name}
+                        width={48}
+                        height={48}
+                        className="w-full h-full object-cover"
+                        style={
+                          activePlayerHasCustomImage
+                            ? {
+                                objectPosition: "center 22%",
+                                transform: `scale(1.18) rotate(${activePlayerImageRotation}deg)`,
+                              }
+                            : undefined
+                        }
+                        unoptimized
+                      />
+                    </div>
                     <p className="text-gray-900 font-medium">{slotPlayers[activeSlot]!.name}</p>
                     <p className="text-sm text-gray-400 mt-0.5">
                       {slotPlayers[activeSlot]!.position} · £{slotPlayers[activeSlot]!.price.toFixed(1)}m

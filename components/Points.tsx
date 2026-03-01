@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Pitch from "@/components/Pitch";
 import { supabase } from "@/lib/supabase";
 import type { PlayerPoints, Gameweek } from "@/app/api/gameweek/route";
+import type { Player } from "@/app/api/players/route";
 
 interface SlotPlayer {
   name: string;
@@ -21,6 +23,8 @@ export default function Points({ userEmail }: Props) {
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [captainName, setCaptainName] = useState<string | null>(null);
   const [snapshotCaptains, setSnapshotCaptains] = useState<Map<number, string>>(new Map());
+  const [playerImages, setPlayerImages] = useState<Map<string, string>>(new Map());
+  const [playerImageRotations, setPlayerImageRotations] = useState<Map<string, number>>(new Map());
   const [currentGwIndex, setCurrentGwIndex] = useState<number>(0);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -36,8 +40,9 @@ export default function Points({ userEmail }: Props) {
         .from("gameweek_snapshots")
         .select("gameweek_number, slot_index, player_name, player_position, player_price, is_captain")
         .eq("user_email", userEmail),
+      fetch("/api/players").then((r) => r.json() as Promise<{ players?: Player[]; error?: string }>),
       fetch("/api/gameweek").then((r) => r.json()),
-    ]).then(([{ data: slotData }, { data: snapshotData }, gwData]) => {
+    ]).then(([{ data: slotData }, { data: snapshotData }, playersData, gwData]) => {
       // Current team (fallback when no snapshot exists)
       let currentCaptainName: string | null = null;
       if (slotData && slotData.length > 0) {
@@ -78,6 +83,17 @@ export default function Points({ userEmail }: Props) {
         setGameweeks(gwData.gameweeks);
         setCurrentGwIndex(gwData.gameweeks.length - 1);
       }
+
+      const imageMap = new Map<string, string>();
+      const imageRotationMap = new Map<string, number>();
+      for (const player of playersData.players ?? []) {
+        const key = player.name.trim().toLowerCase();
+        if (player.image) imageMap.set(key, player.image);
+        if (typeof player.imageRotation === "number") imageRotationMap.set(key, player.imageRotation);
+      }
+      setPlayerImages(imageMap);
+      setPlayerImageRotations(imageRotationMap);
+
       setCaptainName(currentCaptainName);
       setLoaded(true);
     });
@@ -135,6 +151,14 @@ export default function Points({ userEmail }: Props) {
     ? gameweekStats.find((s) => s.name === selectedPlayer.name)
     : null;
   const selectedPoints = selectedSlotIndex !== null ? slotPoints[selectedSlotIndex] ?? 0 : 0;
+  const selectedPlayerImage = selectedPlayer
+    ? playerImages.get(selectedPlayer.name.trim().toLowerCase()) ?? "/avatar.webp"
+    : "/avatar.webp";
+  const selectedPlayerHasCustomImage =
+    selectedPlayer !== null && playerImages.has(selectedPlayer.name.trim().toLowerCase());
+  const selectedPlayerImageRotation = selectedPlayer
+    ? playerImageRotations.get(selectedPlayer.name.trim().toLowerCase()) ?? 0
+    : 0;
   const selectedIsCaptain =
     selectedPlayer !== null && captainForCurrentGw !== null && selectedPlayer.name === captainForCurrentGw;
   const selectedBreakdown = selectedStat
@@ -202,6 +226,26 @@ export default function Points({ userEmail }: Props) {
                   ←
                 </button>
               ) : null}
+              {!showHistory && selectedPlayer && (
+                <div className="w-10 h-10 rounded-xl overflow-hidden border border-gray-200 bg-white mr-2">
+                  <Image
+                    src={selectedPlayerImage}
+                    alt={selectedPlayer.name}
+                    width={40}
+                    height={40}
+                    className="w-full h-full object-cover"
+                    style={
+                      selectedPlayerHasCustomImage
+                        ? {
+                            objectPosition: "center 22%",
+                            transform: `scale(1.18) rotate(${selectedPlayerImageRotation}deg)`,
+                          }
+                        : undefined
+                    }
+                    unoptimized
+                  />
+                </div>
+              )}
               <h3 className="text-base font-semibold text-gray-900 flex-1">
                 {showHistory ? `${selectedPlayer?.name ?? "Player"} — History` : (selectedPlayer?.name ?? "Empty slot")}
               </h3>
