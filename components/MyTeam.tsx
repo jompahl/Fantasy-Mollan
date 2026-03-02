@@ -127,20 +127,15 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
     if (chipGw !== null) return;
     const next = activeBoostChip === chip ? null : chip;
     setActiveBoostChip(next);
-    const ops: Promise<unknown>[] = [
-      supabase.from("user_teams").update({ boost_chip: next }).eq("user_email", userEmail),
-    ];
+    await supabase.from("user_teams").update({ boost_chip: next }).eq("user_email", userEmail);
     if (next !== null && tripleCaptainActive && captainSlotIndex !== null) {
       setTripleCaptainActive(false);
-      ops.push(
-        supabase
-          .from("team_slots")
-          .update({ is_captain: "CAPTAIN" })
-          .eq("user_email", userEmail)
-          .eq("slot_index", captainSlotIndex)
-      );
+      await supabase
+        .from("team_slots")
+        .update({ is_captain: "CAPTAIN" })
+        .eq("user_email", userEmail)
+        .eq("slot_index", captainSlotIndex);
     }
-    await Promise.all(ops);
   }
 
   async function toggleTripleCaptain() {
@@ -148,18 +143,15 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
     const next = !tripleCaptainActive;
     const newRole: CaptainRole = next ? "TRIPLE_CAPTAIN" : "CAPTAIN";
     setTripleCaptainActive(next);
-    const ops: Promise<unknown>[] = [
-      supabase
-        .from("team_slots")
-        .update({ is_captain: newRole })
-        .eq("user_email", userEmail)
-        .eq("slot_index", captainSlotIndex),
-    ];
+    await supabase
+      .from("team_slots")
+      .update({ is_captain: newRole })
+      .eq("user_email", userEmail)
+      .eq("slot_index", captainSlotIndex);
     if (next && activeBoostChip !== null) {
       setActiveBoostChip(null);
-      ops.push(supabase.from("user_teams").update({ boost_chip: null }).eq("user_email", userEmail));
+      await supabase.from("user_teams").update({ boost_chip: null }).eq("user_email", userEmail);
     }
-    await Promise.all(ops);
   }
 
   async function selectCaptain(slotIndex: number) {

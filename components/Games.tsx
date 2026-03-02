@@ -318,9 +318,14 @@ export default function Games() {
           <h3 className="text-sm font-semibold text-gray-700">Bench</h3>
           <span className="text-xs font-medium text-gray-500">{benchPlayers.length} players</span>
         </div>
-        <div className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-4">
+        <div
+          className="w-full rounded-2xl px-3 py-4 overflow-hidden"
+          style={{
+            background: "repeating-linear-gradient(180deg,#2b7a47 0px,#2b7a47 30px,#32904f 30px,#32904f 60px)",
+          }}
+        >
           {benchPlayers.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-2">
+            <p className="text-xs text-white/60 text-center py-2">
               No bench players this gameweek.
             </p>
           ) : (
