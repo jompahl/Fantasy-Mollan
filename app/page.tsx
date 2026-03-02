@@ -52,7 +52,7 @@ export default function Home() {
     }
 
     if (teamName === "") {
-      return <TeamNameSetup onSubmit={saveTeamName} />;
+      return <TeamNameSetup onSubmit={(name) => { saveTeamName(name); setActiveTab("Transfers"); }} />;
     }
 
     return (

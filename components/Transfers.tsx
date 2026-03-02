@@ -342,6 +342,9 @@ export default function Transfers({ userEmail }: Props) {
 
         {/* Pitch */}
         <div className="w-full md:w-60 md:flex-shrink-0 md:sticky md:top-8 order-first md:order-last">
+          {isNewUser && (
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Choose your five a side team</h2>
+          )}
           {deadlineLocked && (
             <p className="text-sm text-red-600 mb-2">
               The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked
@@ -372,6 +375,7 @@ export default function Transfers({ userEmail }: Props) {
             onSlotClick={deadlineLocked ? undefined : openSlot}
             slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
             slotPrices={slotPlayers.map((p) => p?.price ?? null)}
+            highlightEmpty={isNewUser}
           />
           <div className="mt-3 flex gap-2">
             <button
