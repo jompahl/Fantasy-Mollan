@@ -56,10 +56,10 @@ export default function League() {
 
           for (const slot of teamSlots) {
             const stat = gw.players.find((p) => p.name === slot.player_name);
-            const points = stat?.points ?? 0;
-            let multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
-            if (boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", "")) multiplier *= 2;
-            totalPoints += points * multiplier;
+            const base = stat?.points ?? 0;
+            const captainMult = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+            const isBoostSlot = !!(boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", ""));
+            totalPoints += base * (captainMult + (isBoostSlot ? 1 : 0));
           }
         }
 

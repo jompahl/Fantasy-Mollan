@@ -105,9 +105,9 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
             for (const slot of teamSlots) {
               const stat = gw.players.find((p) => p.name === slot.player_name);
               const base = stat?.points ?? 0;
-              let multiplier = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
-              if (boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", "")) multiplier *= 2;
-              total += base * multiplier;
+              const captainMult = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
+              const isBoostSlot = !!(boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", ""));
+              total += base * (captainMult + (isBoostSlot ? 1 : 0));
             }
           }
           total -= teamData?.points_deducted ?? 0;

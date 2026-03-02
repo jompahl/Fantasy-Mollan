@@ -132,9 +132,9 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
           for (const slot of slots) {
             const stat = gw.players.find((p) => p.name === slot.player_name);
             const base = stat?.points ?? 0;
-            let multiplier = slot.player_name === capName ? (tcForGw ? 3 : 2) : 1;
-            if (boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", "")) multiplier *= 2;
-            overallTotal += base * multiplier;
+            const captainMult = slot.player_name === capName ? (tcForGw ? 3 : 2) : 1;
+            const isBoostSlot = !!(boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", ""));
+            overallTotal += base * (captainMult + (isBoostSlot ? 1 : 0));
           }
         }
         overallTotal -= teamData?.points_deducted ?? 0;
@@ -185,9 +185,9 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
     if (!p) return null;
     const stat = gameweekStats.find((s) => s.name === p.name);
     const basePoints = stat?.points ?? 0;
-    let multiplier = (captainForCurrentGw && p.name === captainForCurrentGw) ? (tcActiveForCurrentGw ? 3 : 2) : 1;
-    if (boostChipForCurrentGw && SLOTS[i]?.label === boostChipForCurrentGw.replace("_BOOST", "")) multiplier *= 2;
-    return basePoints * multiplier;
+    const captainMult = (captainForCurrentGw && p.name === captainForCurrentGw) ? (tcActiveForCurrentGw ? 3 : 2) : 1;
+    const isBoostSlot = !!(boostChipForCurrentGw && SLOTS[i]?.label === boostChipForCurrentGw.replace("_BOOST", ""));
+    return basePoints * (captainMult + (isBoostSlot ? 1 : 0));
   });
 
   const slotGoals = slotPlayers.map((p) => {
@@ -239,7 +239,7 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
           ? [{ label: tcActiveForCurrentGw ? "Triple Captain bonus (triple points)" : "Captain bonus (double points)", value: true, points: tcActiveForCurrentGw ? selectedStat.points * 2 : selectedStat.points }]
           : []),
         ...(selectedIsBoost
-          ? [{ label: `${boostLabel} Boost (double points)`, value: true, points: selectedStat.points * (tcActiveForCurrentGw ? 3 : selectedIsCaptain ? 2 : 1) }]
+          ? [{ label: `${boostLabel} Boost (double points)`, value: true, points: selectedStat.points }]
           : []),
       ]
     : [];
