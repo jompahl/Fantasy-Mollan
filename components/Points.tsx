@@ -183,6 +183,10 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
     return <p className="text-gray-400 text-sm">Loading…</p>;
   }
 
+  if (gameweeks.length === 0) {
+    return <p className="text-gray-400 text-sm">No games have been played yet.</p>;
+  }
+
   const currentGameweek = gameweeks[currentGwIndex];
 
   // Use snapshot for this gameweek if available, otherwise fall back to current team

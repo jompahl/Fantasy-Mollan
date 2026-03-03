@@ -155,7 +155,7 @@ export default function Home() {
               <Points userEmail={userEmail} onTotalPointsChange={setPointsTotalPoints} />
             </>
           )}
-          {activeTab === "Transfers" && <Transfers userEmail={userEmail} />}
+          {activeTab === "Transfers" && <Transfers userEmail={userEmail} onFirstSave={() => setActiveTab("My Team")} />}
           {activeTab === "League" && <League />}
           {activeTab === "Games" && <Games />}
           {activeTab === "Stats" && <Stats />}

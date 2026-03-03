@@ -29,19 +29,30 @@ export default function Help() {
         ))}
       </ul>
 
-      <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-3">Transfer Rules</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-3">Chips</h2>
+      <ul className="space-y-2 mb-8">
+        {[
+          "Triple Captain can be played once a season. If played, the captain's multiplier will be 3× instead of the usual 2×.",
+          "Defensive Boost chip will give you 2× points for your defensive line.",
+          "Midfield Boost chip will give you 2× points for your midfield line.",
+          "Forward Boost chip will give you 2× points for your forward line.",
+        ].map((rule) => (
+          <li key={rule} className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            {rule}
+          </li>
+        ))}
+      </ul>
+
+      <h2 className="text-xl font-semibold text-gray-900 mb-3">Transfer Rules</h2>
       <div className="space-y-3 text-sm text-gray-700">
         <p className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
           After selecting your squad you can buy and sell players in the transfer market. Unlimited transfers can be made at no cost until your first deadline.
         </p>
         <p className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-          After your first deadline you will receive 1 free transfer each Gameweek. Each additional transfer you make in the same Gameweek will deduct 4 points from your total score (Classic scoring) and match score (Head-to-Head scoring) at the start of the next Gameweek.
+          After your first deadline you will receive 1 free transfer each Gameweek. Each additional transfer you make in the same Gameweek will deduct 4 points from your total score.
         </p>
         <p className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
           If you do not use your free transfer, you are able to make an additional free transfer the following Gameweek. If you do not use this saved free transfer in the following Gameweek, it will be carried over until you do. The maximum number of free transfers you can store in any gameweek is 5.
-        </p>
-        <p className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-          At other times you are limited to 20 transfers in any single Gameweek. This rule does not apply when playing a Wildcard or a Free Hit Chip.
         </p>
       </div>
     </div>

@@ -39,9 +39,10 @@ const BUDGET_START = 50;
 
 interface Props {
   userEmail: string;
+  onFirstSave?: () => void;
 }
 
-export default function Transfers({ userEmail }: Props) {
+export default function Transfers({ userEmail, onFirstSave }: Props) {
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [error, setError] = useState(false);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
@@ -199,6 +200,7 @@ export default function Transfers({ userEmail }: Props) {
     setSavedSlotPlayers([...slotPlayers]);
     setSaving(false);
     setSaved(true);
+    if (isNewUser) onFirstSave?.();
   }
 
   if (error) {
@@ -311,7 +313,7 @@ export default function Transfers({ userEmail }: Props) {
             </button>
             <button
               onClick={saveTeam}
-              disabled={deadlineLocked || budget < 0 || saving || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
+              disabled={deadlineLocked || budget < 0 || saving || slotPlayers.some((p) => !p) || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
               className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-700 disabled:hover:bg-gray-900"
             >
               {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
