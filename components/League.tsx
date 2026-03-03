@@ -6,11 +6,13 @@ import type { Gameweek } from "@/app/api/gameweek/route";
 import type { Player } from "@/app/api/players/route";
 import Points from "@/components/Points";
 import { SLOTS } from "@/components/Pitch";
+import { EmblemDisplay } from "@/components/EmblemPicker";
 
 interface Standing {
   teamName: string;
   userEmail: string;
   totalPoints: number;
+  emblem: string | null;
 }
 
 interface BestGw {
@@ -18,6 +20,12 @@ interface BestGw {
   userEmail: string;
   points: number;
   gwNumber: number;
+  emblem: string | null;
+}
+
+function TeamEmblem({ emblem }: { emblem: string | null }) {
+  if (emblem) return <EmblemDisplay emblem={emblem} className="w-6 h-auto" />;
+  return <img src="/fc-mollan-logo.svg" alt="" className="w-6 h-6 object-contain" />;
 }
 
 export default function League() {
@@ -33,7 +41,7 @@ export default function League() {
     Promise.all([
       fetch("/api/gameweek").then((r) => r.json()),
       fetch("/api/players").then((r) => r.json()),
-      supabase.from("user_teams").select("user_email, team_name, points_deducted, joined_gameweek"),
+      supabase.from("user_teams").select("user_email, team_name, points_deducted, joined_gameweek, emblem"),
       supabase
         .from("gameweek_snapshots")
         .select("user_email, gameweek_number, slot_index, player_name, is_captain, boost_chip"),
@@ -95,14 +103,17 @@ export default function League() {
           }
         }
 
+        const emblem = (team as { emblem?: string | null }).emblem ?? null;
+
         if (bestGwNumber > 0) {
-          bestGwResult.push({ teamName: team.team_name, userEmail: email, points: bestGwPoints, gwNumber: bestGwNumber });
+          bestGwResult.push({ teamName: team.team_name, userEmail: email, points: bestGwPoints, gwNumber: bestGwNumber, emblem });
         }
 
         return {
           teamName: team.team_name,
           userEmail: email,
           totalPoints: totalPoints - (team.points_deducted ?? 0),
+          emblem,
         };
       });
 
@@ -144,6 +155,7 @@ export default function League() {
         <thead>
           <tr className="border-b border-gray-200">
             <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
+            <th className="pb-2 w-8" />
             <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Team</th>
             <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Pts</th>
           </tr>
@@ -156,6 +168,7 @@ export default function League() {
               className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${i === 0 ? "font-semibold" : ""}`}
             >
               <td className="py-3 text-sm text-gray-400">{i + 1}</td>
+              <td className="py-2"><TeamEmblem emblem={entry.emblem} /></td>
               <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>
               <td className="py-3 text-sm text-gray-900 text-right">{entry.totalPoints}</td>
             </tr>
@@ -170,6 +183,7 @@ export default function League() {
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
+                <th className="pb-2 w-8" />
                 <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Team</th>
                 <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">GW</th>
                 <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Pts</th>
@@ -186,6 +200,7 @@ export default function League() {
                   className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${i === 0 ? "font-semibold" : ""}`}
                 >
                   <td className="py-3 text-sm text-gray-400">{i + 1}</td>
+                  <td className="py-2"><TeamEmblem emblem={entry.emblem} /></td>
                   <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>
                   <td className="py-3 text-sm text-gray-400">{entry.gwNumber}</td>
                   <td className="py-3 text-sm text-gray-900 text-right">{entry.points}</td>

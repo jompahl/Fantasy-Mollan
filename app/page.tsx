@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useTeamName } from "@/components/useTeamName";
 import TeamNameSetup from "@/components/TeamNameSetup";
+import EmblemPicker, { EmblemDisplay, type TeamImage } from "@/components/EmblemPicker";
+import { supabase } from "@/lib/supabase";
 import Transfers from "@/components/Transfers";
 import Points from "@/components/Points";
 import League from "@/components/League";
@@ -24,6 +26,9 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("My Team");
   const [menuOpen, setMenuOpen] = useState(false);
   const [pointsTotalPoints, setPointsTotalPoints] = useState<number>(0);
+  const [emblemUrl, setEmblemUrl] = useState<string | null>(null);
+  const [showEmblemPicker, setShowEmblemPicker] = useState(false);
+  const [teamImages, setTeamImages] = useState<TeamImage[]>([]);
   const { teamName, saveTeamName } = useTeamName(session?.user?.email);
   const userEmail = session?.user?.email ?? null;
   const isAdmin = userEmail === ADMIN_EMAIL;
@@ -36,6 +41,22 @@ export default function Home() {
       setActiveTab("My Team");
     }
   }, [isAdmin, activeTab]);
+
+  useEffect(() => {
+    if (!userEmail) return;
+    supabase
+      .from("user_teams")
+      .select("emblem")
+      .eq("user_email", userEmail)
+      .single()
+      .then(({ data }) => setEmblemUrl(data?.emblem ?? null));
+  }, [userEmail]);
+
+  useEffect(() => {
+    fetch("/api/teams")
+      .then((r) => r.json())
+      .then((data: { teams?: TeamImage[] }) => setTeamImages(data.teams ?? []));
+  }, []);
 
   if (status === "loading") {
     return <main className="min-h-screen bg-white" />;
@@ -142,7 +163,29 @@ export default function Home() {
         <main className="flex-1 px-6 py-8">
           {activeTab === "My Team" && (
             <>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4 md:text-center">{teamName}</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
+                <button
+                  onClick={() => setShowEmblemPicker(true)}
+                  aria-label="Change team emblem"
+                  className="flex-shrink-0 hover:opacity-75 transition-opacity"
+                >
+                  {emblemUrl ? (
+                    <EmblemDisplay emblem={emblemUrl} className="w-10 h-auto" />
+                  ) : (
+                    <svg viewBox="0 0 100 116" className="w-10 h-auto" fill="none">
+                      <path
+                        d="M10 5 L90 5 L90 62 C90 88 62 106 50 112 C38 106 10 88 10 62 Z"
+                        stroke="#d1d5db"
+                        strokeWidth="5"
+                        strokeLinejoin="round"
+                      />
+                      <line x1="50" y1="33" x2="50" y2="77" stroke="#d1d5db" strokeWidth="7" strokeLinecap="round" />
+                      <line x1="28" y1="55" x2="72" y2="55" stroke="#d1d5db" strokeWidth="7" strokeLinecap="round" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               <MyTeam userEmail={userEmail} />
             </>
           )}
@@ -162,6 +205,24 @@ export default function Home() {
           {activeTab === "Help" && <Help />}
           {activeTab === "GW admin" && isAdmin && <GameweekAdministration />}
         </main>
+
+        {showEmblemPicker && (
+          <EmblemPicker
+            current={emblemUrl}
+            teamImages={[{ name: "FC Möllan", imageUrl: "/fc-mollan-logo.svg" }, ...teamImages]}
+            onSelect={(value) => {
+              if (userEmail) {
+                setEmblemUrl(value);
+                supabase
+                  .from("user_teams")
+                  .update({ emblem: value })
+                  .eq("user_email", userEmail)
+                  .then(() => {});
+              }
+            }}
+            onClose={() => setShowEmblemPicker(false)}
+          />
+        )}
       </div>
     );
   }
