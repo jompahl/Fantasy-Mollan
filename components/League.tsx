@@ -13,8 +13,15 @@ interface Standing {
   totalPoints: number;
 }
 
+interface BestGw {
+  teamName: string;
+  points: number;
+  gwNumber: number;
+}
+
 export default function League() {
   const [standings, setStandings] = useState<Standing[]>([]);
+  const [bestGameweeks, setBestGameweeks] = useState<BestGw[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<Standing | null>(null);
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
@@ -50,9 +57,12 @@ export default function League() {
         statsByGw.set(gw.number, map);
       }
 
+      const bestGwResult: BestGw[] = [];
       const result: Standing[] = (teams ?? []).map((team) => {
         const email = team.user_email;
         let totalPoints = 0;
+        let bestGwPoints = 0;
+        let bestGwNumber = 0;
 
         const joinedGameweek: number | null = (team as { joined_gameweek?: number | null }).joined_gameweek ?? null;
 
@@ -67,13 +77,24 @@ export default function League() {
           const tcActiveForGw = snapshotSlots.some((s) => s.is_captain === "TRIPLE_CAPTAIN");
           const boostChipForGw = (snapshotSlots[0] as { boost_chip?: string | null }).boost_chip ?? null;
 
+          let gwPoints = 0;
           for (const slot of snapshotSlots) {
             const stat = statsMap.get(slot.player_name);
             const base = stat?.points ?? 0;
             const captainMult = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
             const isBoostSlot = !!(boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", ""));
-            totalPoints += base * (captainMult + (isBoostSlot ? 1 : 0));
+            gwPoints += base * (captainMult + (isBoostSlot ? 1 : 0));
           }
+          totalPoints += gwPoints;
+
+          if (gwPoints > bestGwPoints) {
+            bestGwPoints = gwPoints;
+            bestGwNumber = gw.number;
+          }
+        }
+
+        if (bestGwNumber > 0) {
+          bestGwResult.push({ teamName: team.team_name, points: bestGwPoints, gwNumber: bestGwNumber });
         }
 
         return {
@@ -84,7 +105,9 @@ export default function League() {
       });
 
       result.sort((a, b) => b.totalPoints - a.totalPoints);
+      bestGwResult.sort((a, b) => b.points - a.points);
       setStandings(result);
+      setBestGameweeks(bestGwResult);
       setLoaded(true);
     });
   }, []);
@@ -114,6 +137,7 @@ export default function League() {
 
   return (
     <div className="w-full max-w-md md:mx-auto">
+      <h2 className="text-xl font-semibold text-gray-900 mb-3">Total points</h2>
       <table className="w-full">
         <thead>
           <tr className="border-b border-gray-200">
@@ -136,6 +160,35 @@ export default function League() {
           ))}
         </tbody>
       </table>
+
+      {bestGameweeks.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-xl font-semibold text-gray-900 mb-3">Best Gameweek</h2>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Team</th>
+                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">GW</th>
+                <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bestGameweeks.map((entry, i) => (
+                <tr
+                  key={entry.teamName}
+                  className={`border-b border-gray-100 ${i === 0 ? "font-semibold" : ""}`}
+                >
+                  <td className="py-3 text-sm text-gray-400">{i + 1}</td>
+                  <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>
+                  <td className="py-3 text-sm text-gray-400">{entry.gwNumber}</td>
+                  <td className="py-3 text-sm text-gray-900 text-right">{entry.points}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
