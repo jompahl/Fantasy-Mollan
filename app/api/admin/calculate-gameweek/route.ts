@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ data: teams }, { data: allSlots }, { data: existingSnapshots }] = await Promise.all([
-      supabase.from("user_teams").select("user_email, joined_gameweek, boost_chip"),
+      supabase.from("user_teams").select("user_email, joined_gameweek, boost_chip, transfers"),
       supabase.from("team_slots").select("user_email, slot_index, player_name, player_position, player_price, is_captain"),
       supabase.from("gameweek_snapshots").select("user_email").eq("gameweek_number", gwNumber),
     ]);
@@ -44,6 +44,8 @@ export async function POST(request: NextRequest) {
     const snapshotRows: object[] = [];
     const usersToResetBoost: string[] = [];
     const usersToResetTC: Array<{ email: string; slotIndex: number }> = [];
+    const usersToInitTransfers: string[] = [];
+    const usersToIncrementTransfers: Array<{ email: string; newValue: number }> = [];
 
     for (const team of teams ?? []) {
       const email = team.user_email;
@@ -74,6 +76,13 @@ export async function POST(request: NextRequest) {
 
       const tcSlot = userSlots.find((s) => s.is_captain === "TRIPLE_CAPTAIN");
       if (tcSlot) usersToResetTC.push({ email, slotIndex: tcSlot.slot_index });
+
+      const currentTransfers = (team as { transfers?: number | null }).transfers ?? null;
+      if (currentTransfers === null) {
+        usersToInitTransfers.push(email);
+      } else {
+        usersToIncrementTransfers.push({ email, newValue: Math.min(currentTransfers + 1, 5) });
+      }
     }
 
     if (snapshotRows.length > 0) {
@@ -91,6 +100,16 @@ export async function POST(request: NextRequest) {
         .update({ is_captain: "CAPTAIN" })
         .eq("user_email", email)
         .eq("slot_index", slotIndex);
+    }
+
+    // Grant 1 transfer to each snapshotted user.
+    // NULL → 1 (first GW calculated for this user).
+    // number → min(number + 1, 5) (rolling bank, capped at 5).
+    if (usersToInitTransfers.length > 0) {
+      await supabase.from("user_teams").update({ transfers: 1 }).in("user_email", usersToInitTransfers);
+    }
+    for (const { email, newValue } of usersToIncrementTransfers) {
+      await supabase.from("user_teams").update({ transfers: newValue }).eq("user_email", email);
     }
 
     const usersSnapshotted = new Set(snapshotRows.map((r) => (r as { user_email: string }).user_email)).size;

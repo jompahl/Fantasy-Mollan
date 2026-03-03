@@ -53,7 +53,7 @@ export default function Transfers({ userEmail }: Props) {
   const [saved, setSaved] = useState(false);
   const [calculatedGwCount, setCalculatedGwCount] = useState<number | null>(null);
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
-  const [transfersUsed, setTransfersUsed] = useState(0);
+  const [transfersBalance, setTransfersBalance] = useState<number | null>(null);
   const [pointsDeducted, setPointsDeducted] = useState(0);
   const [joinedGameweek, setJoinedGameweek] = useState<number | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
@@ -88,7 +88,7 @@ export default function Transfers({ userEmail }: Props) {
           .eq("user_email", userEmail),
         supabase
           .from("user_teams")
-          .select("transfers_used, points_deducted, joined_gameweek")
+          .select("transfers, points_deducted, joined_gameweek")
           .eq("user_email", userEmail)
           .single(),
       ]);
@@ -111,7 +111,7 @@ export default function Transfers({ userEmail }: Props) {
         setCaptainName(captain);
       }
 
-      setTransfersUsed(teamData?.transfers_used ?? 0);
+      setTransfersBalance((teamData as { transfers?: number | null } | null)?.transfers ?? null);
       setPointsDeducted(teamData?.points_deducted ?? 0);
       setJoinedGameweek(teamData?.joined_gameweek ?? null);
       setSlotsLoaded(true);
@@ -123,34 +123,15 @@ export default function Transfers({ userEmail }: Props) {
     BUDGET_START
   );
 
-  // null = still loading, Infinity = no gameweeks yet (unlimited), number = count
   const pendingChanges = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
-  // For late joiners, only count GWs played since their joined_gameweek.
-  // If joinedGameweek hasn't been set yet but the user has no saved team and GWs
-  // already exist, treat them as a first-time late joiner (0 GWs played → unlimited).
-  const isFirstTimeLateJoiner =
-    isNewUser &&
-    joinedGameweek === null &&
-    calculatedGwCount !== null &&
-    calculatedGwCount > 0;
-  const gwsPlayedSinceJoining: number | null =
-    calculatedGwCount === null ? null
-    : isFirstTimeLateJoiner ? 0
-    : joinedGameweek === null
-    ? calculatedGwCount
-    : gameweeks.filter((gw) => gw.number >= joinedGameweek).length;
-  const MAX_FREE_TRANSFERS = 5;
-  const baseFreeTransfers: number | null =
-    gwsPlayedSinceJoining === null ? null
-    : gwsPlayedSinceJoining === 0 ? Infinity
-    : Math.min(MAX_FREE_TRANSFERS, Math.max(0, gwsPlayedSinceJoining - transfersUsed));
+
+  // transfersBalance === null means unlimited (user hasn't had their first GW calculated yet)
+  const isUnlimited = !slotsLoaded || transfersBalance === null;
   const freeTransfers: number | null =
-    baseFreeTransfers === null ? null
-    : baseFreeTransfers === Infinity ? Infinity
-    : Math.max(0, baseFreeTransfers - pendingChanges);
-  const extraTransfers =
-    baseFreeTransfers === null || baseFreeTransfers === Infinity ? 0
-    : Math.max(0, pendingChanges - baseFreeTransfers);
+    !slotsLoaded ? null
+    : isUnlimited ? Infinity
+    : Math.max(0, transfersBalance! - pendingChanges);
+  const extraTransfers = isUnlimited ? 0 : Math.max(0, pendingChanges - transfersBalance!);
   const pointDeduction = extraTransfers * 4;
 
   function openSlot(index: number) {
@@ -181,58 +162,6 @@ export default function Transfers({ userEmail }: Props) {
     if (deadlineLocked) return;
     setSaving(true);
 
-    let tcWasStamped = false;
-
-    // Snapshot the current saved team for any calculated GWs that don't have one yet
-    if (calculatedGwCount && calculatedGwCount > 0) {
-      const { data: existingSnapshots } = await supabase
-        .from("gameweek_snapshots")
-        .select("gameweek_number")
-        .eq("user_email", userEmail);
-
-      const alreadySnapshotted = new Set(
-        (existingSnapshots ?? []).map((s: { gameweek_number: number }) => s.gameweek_number)
-      );
-
-      const snapshotRows = [];
-      const firstGw = joinedGameweek ?? 1;
-      for (let gw = firstGw; gw <= calculatedGwCount; gw++) {
-        if (!alreadySnapshotted.has(gw)) {
-          for (let i = 0; i < savedSlotPlayers.length; i++) {
-            const p = savedSlotPlayers[i];
-            if (p) {
-              const isCap = captainName ? p.name === captainName : false;
-              snapshotRows.push({
-                user_email: userEmail,
-                gameweek_number: gw,
-                slot_index: i,
-                player_name: p.name,
-                player_position: p.position,
-                player_price: p.price,
-                is_captain: isCap ? (tripleCaptainActive ? "TRIPLE_CAPTAIN" : "CAPTAIN") : "NOT_CAPTAIN",
-              });
-            }
-          }
-        }
-      }
-
-      tcWasStamped = snapshotRows.some((r) => r.is_captain === "TRIPLE_CAPTAIN");
-
-      if (snapshotRows.length > 0) {
-        await supabase.from("gameweek_snapshots").insert(snapshotRows);
-      }
-
-      // TC chip is now consumed — reset captain slot back to normal in team_slots
-      if (tcWasStamped) {
-        await supabase
-          .from("team_slots")
-          .update({ is_captain: "CAPTAIN" })
-          .eq("user_email", userEmail)
-          .eq("is_captain", "TRIPLE_CAPTAIN");
-        setTripleCaptainActive(false);
-      }
-    }
-
     const rows = slotPlayers
       .map((p, i) => p ? {
         user_email: userEmail,
@@ -240,7 +169,7 @@ export default function Transfers({ userEmail }: Props) {
         player_name: p.name,
         player_position: p.position,
         player_price: p.price,
-        is_captain: p.name === captainName ? ((tripleCaptainActive && !tcWasStamped) ? "TRIPLE_CAPTAIN" : "CAPTAIN") : "NOT_CAPTAIN",
+        is_captain: p.name === captainName ? (tripleCaptainActive ? "TRIPLE_CAPTAIN" : "CAPTAIN") : "NOT_CAPTAIN",
       } : null)
       .filter(Boolean);
 
@@ -255,21 +184,16 @@ export default function Transfers({ userEmail }: Props) {
       setIsNewUser(false);
     }
 
-    // Only count FREE transfers used — extra transfers cost points but don't
-    // reduce future free transfer allocation.
-    if (gwsPlayedSinceJoining && gwsPlayedSinceJoining > 0) {
+    // Deduct transfers from the bank. Unlimited (null) users pay nothing.
+    if (transfersBalance !== null) {
       const changes = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
-      const freeUsed =
-        baseFreeTransfers === Infinity ? 0 : Math.min(changes, baseFreeTransfers ?? 0);
-      const extras = changes - freeUsed;
-      const updates: Record<string, number> = {};
-      if (freeUsed > 0) updates.transfers_used = transfersUsed + freeUsed;
+      const extras = Math.max(0, changes - transfersBalance);
+      const newBalance = Math.max(0, transfersBalance - changes);
+      const updates: Record<string, number> = { transfers: newBalance };
       if (extras > 0) updates.points_deducted = pointsDeducted + extras * 4;
-      if (Object.keys(updates).length > 0) {
-        await supabase.from("user_teams").update(updates).eq("user_email", userEmail);
-        if (freeUsed > 0) setTransfersUsed(transfersUsed + freeUsed);
-        if (extras > 0) setPointsDeducted(pointsDeducted + extras * 4);
-      }
+      await supabase.from("user_teams").update(updates).eq("user_email", userEmail);
+      setTransfersBalance(newBalance);
+      if (extras > 0) setPointsDeducted(pointsDeducted + extras * 4);
     }
 
     setSavedSlotPlayers([...slotPlayers]);
