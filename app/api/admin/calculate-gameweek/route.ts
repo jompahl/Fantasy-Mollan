@@ -55,27 +55,40 @@ export async function POST(request: NextRequest) {
       if (alreadySnapshotted.has(email)) continue;
 
       const userSlots = (allSlots ?? []).filter((s) => s.user_email === email);
-      if (userSlots.length === 0) continue;
-
       const boostChip = (team as { boost_chip?: string | null }).boost_chip ?? null;
 
-      for (const slot of userSlots) {
-        snapshotRows.push({
-          user_email: email,
-          gameweek_number: gwNumber,
-          slot_index: slot.slot_index,
-          player_name: slot.player_name,
-          player_position: slot.player_position,
-          player_price: slot.player_price,
-          is_captain: slot.is_captain,
-          boost_chip: boostChip,
-        });
+      if (userSlots.length === 0) {
+        // User never picked a team — record 5 placeholder rows so they appear in
+        // the league/points history with 0 points for this GW.
+        for (let i = 0; i < 5; i++) {
+          snapshotRows.push({
+            user_email: email,
+            gameweek_number: gwNumber,
+            slot_index: i,
+            player_name: "NO_PLAYER_SELECTED",
+            player_position: "",
+            player_price: 0,
+            is_captain: "NOT_CAPTAIN",
+            boost_chip: null,
+          });
+        }
+      } else {
+        for (const slot of userSlots) {
+          snapshotRows.push({
+            user_email: email,
+            gameweek_number: gwNumber,
+            slot_index: slot.slot_index,
+            player_name: slot.player_name,
+            player_position: slot.player_position,
+            player_price: slot.player_price,
+            is_captain: slot.is_captain,
+            boost_chip: boostChip,
+          });
+        }
+        if (boostChip) usersToResetBoost.push(email);
+        const tcSlot = userSlots.find((s) => s.is_captain === "TRIPLE_CAPTAIN");
+        if (tcSlot) usersToResetTC.push({ email, slotIndex: tcSlot.slot_index });
       }
-
-      if (boostChip) usersToResetBoost.push(email);
-
-      const tcSlot = userSlots.find((s) => s.is_captain === "TRIPLE_CAPTAIN");
-      if (tcSlot) usersToResetTC.push({ email, slotIndex: tcSlot.slot_index });
 
       const currentTransfers = (team as { transfers?: number | null }).transfers ?? null;
       if (currentTransfers === null) {
