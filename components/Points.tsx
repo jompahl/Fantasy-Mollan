@@ -17,9 +17,11 @@ interface SlotPlayer {
 interface Props {
   userEmail: string;
   onTotalPointsChange?: (points: number) => void;
+  initialGameweeks?: Gameweek[];
+  initialPlayers?: Player[];
 }
 
-export default function Points({ userEmail, onTotalPointsChange }: Props) {
+export default function Points({ userEmail, onTotalPointsChange, initialGameweeks, initialPlayers }: Props) {
   const [currentSlotPlayers, setCurrentSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
   const [snapshots, setSnapshots] = useState<Map<number, (SlotPlayer | null)[]>>(new Map());
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
@@ -37,6 +39,13 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
   const [currentBoostChip, setCurrentBoostChip] = useState<string | null>(null);
 
   useEffect(() => {
+    const gwFetch = initialGameweeks
+      ? Promise.resolve({ gameweeks: initialGameweeks } as { gameweeks: Gameweek[]; error?: string })
+      : fetch("/api/gameweek").then((r) => r.json());
+    const playersFetch = initialPlayers
+      ? Promise.resolve({ players: initialPlayers } as { players?: Player[]; error?: string })
+      : (fetch("/api/players").then((r) => r.json()) as Promise<{ players?: Player[]; error?: string }>);
+
     Promise.all([
       supabase
         .from("team_slots")
@@ -46,8 +55,8 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
         .from("gameweek_snapshots")
         .select("gameweek_number, slot_index, player_name, player_position, player_price, is_captain, boost_chip")
         .eq("user_email", userEmail),
-      fetch("/api/players").then((r) => r.json() as Promise<{ players?: Player[]; error?: string }>),
-      fetch("/api/gameweek").then((r) => r.json()),
+      playersFetch,
+      gwFetch,
       supabase
         .from("user_teams")
         .select("points_deducted, joined_gameweek, boost_chip")
@@ -103,8 +112,9 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
 
       if (!gwData.error && gwData.gameweeks?.length > 0) {
         const joinedGameweek: number | null = teamData?.joined_gameweek ?? null;
+        const snapshotGwNumbers = new Set((snapshotData ?? []).map((s) => s.gameweek_number));
         const eligibleGameweeks = (gwData.gameweeks as Gameweek[]).filter(
-          (gw) => joinedGameweek === null || gw.number >= joinedGameweek
+          (gw) => snapshotGwNumbers.has(gw.number) && (joinedGameweek === null || gw.number >= joinedGameweek)
         );
         setGameweeks(eligibleGameweeks);
         setCurrentGwIndex(Math.max(0, eligibleGameweeks.length - 1));
@@ -113,23 +123,37 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
         let overallTotal = 0;
         const allSnapshots = snapshotData ?? [];
         const localBoostChip = (teamData as { boost_chip?: string | null } | null)?.boost_chip ?? null;
-        const gwBoostChipMap = new Map<number, string>(
-          (allSnapshots as Array<{ gameweek_number: number; boost_chip?: string | null }>)
-            .filter((s) => s.boost_chip != null)
-            .map((s) => [s.gameweek_number, s.boost_chip!])
-        );
+
+        // Pre-group snapshots by gameweek number for O(1) lookup
+        const snapshotsByGw = new Map<number, typeof allSnapshots>();
+        for (const s of allSnapshots) {
+          if (!snapshotsByGw.has(s.gameweek_number)) snapshotsByGw.set(s.gameweek_number, []);
+          snapshotsByGw.get(s.gameweek_number)!.push(s);
+        }
+
+        // Pre-index player stats by name per gameweek for O(1) lookup
+        const statsByGw = new Map<number, Map<string, { points: number }>>();
         for (const gw of eligibleGameweeks) {
-          const gwSnapshots = allSnapshots.filter((s) => s.gameweek_number === gw.number);
+          const map = new Map<string, { points: number }>();
+          for (const p of gw.players) map.set(p.name, p);
+          statsByGw.set(gw.number, map);
+        }
+
+        for (const gw of eligibleGameweeks) {
+          const gwSnapshots = snapshotsByGw.get(gw.number) ?? [];
           const slots = gwSnapshots.length > 0 ? gwSnapshots : (slotData ?? []);
+          const statsMap = statsByGw.get(gw.number) ?? new Map();
+          const boostChipForGw = gwSnapshots.length > 0
+            ? ((gwSnapshots[0] as { boost_chip?: string | null }).boost_chip ?? null)
+            : localBoostChip;
           const capName = gwSnapshots.length > 0
             ? (gwSnapshots.find((s) => s.is_captain === "CAPTAIN" || s.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null)
             : currentCaptainName;
           const tcForGw = gwSnapshots.length > 0
             ? gwSnapshots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
             : (slotData ?? []).some((s) => s.is_captain === "TRIPLE_CAPTAIN");
-          const boostChipForGw = gwSnapshots.length > 0 ? (gwBoostChipMap.get(gw.number) ?? null) : localBoostChip;
           for (const slot of slots) {
-            const stat = gw.players.find((p) => p.name === slot.player_name);
+            const stat = statsMap.get(slot.player_name);
             const base = stat?.points ?? 0;
             const captainMult = slot.player_name === capName ? (tcForGw ? 3 : 2) : 1;
             const isBoostSlot = !!(boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", ""));
@@ -153,7 +177,7 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
       setCaptainName(currentCaptainName);
       setLoaded(true);
     });
-  }, [userEmail]);
+  }, [userEmail, initialGameweeks, initialPlayers]);
 
   if (!loaded) {
     return <p className="text-gray-400 text-sm">Loading…</p>;

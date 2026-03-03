@@ -13,10 +13,9 @@ interface SlotPlayer {
 
 interface Props {
   userEmail: string;
-  onTotalPointsChange?: (points: number) => void;
 }
 
-export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
+export default function MyTeam({ userEmail }: Props) {
   const [slotPlayers, setSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
   const [captainSlotIndex, setCaptainSlotIndex] = useState<number | null>(null);
   const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
@@ -37,16 +36,15 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         .eq("user_email", userEmail),
       supabase
         .from("user_teams")
-        .select("points_deducted, joined_gameweek, boost_chip")
+        .select("joined_gameweek, boost_chip")
         .eq("user_email", userEmail)
         .single(),
       supabase
         .from("gameweek_snapshots")
         .select("gameweek_number, slot_index, player_name, is_captain, boost_chip")
         .eq("user_email", userEmail),
-      fetch("/api/gameweek").then((r) => r.json()),
     ]).then(
-      ([{ data: slotData }, { data: teamData }, { data: snapshotData }, gwData]) => {
+      ([{ data: slotData }, { data: teamData }, { data: snapshotData }]) => {
         const snapshots =
           (snapshotData as Array<{
             gameweek_number: number;
@@ -80,45 +78,10 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
         setCaptainSlotIndex(captainIdx);
         setTripleCaptainActive(tcActive);
 
-        if (!gwData.error && gwData.gameweeks?.length) {
-          const joinedGameweek: number | null = teamData?.joined_gameweek ?? null;
-          const currentBoostChip = (teamData as { boost_chip?: string | null } | null)?.boost_chip ?? null;
-          let total = 0;
-          for (const gw of gwData.gameweeks as Array<{ number: number; players: Array<{ name: string; points: number }> }>) {
-            if (joinedGameweek !== null && gw.number < joinedGameweek) continue;
-            const gwSnapshots = snapshots.filter((s) => s.gameweek_number === gw.number);
-            const teamSlots =
-              gwSnapshots.length > 0
-                ? gwSnapshots
-                : (slotData ?? []).map((s) => ({ slot_index: s.slot_index, player_name: s.player_name, is_captain: s.is_captain ?? "NOT_CAPTAIN", boost_chip: null as string | null }));
-
-            const captainForGw = gwSnapshots.length > 0
-              ? (gwSnapshots.find((s) => s.is_captain === "CAPTAIN" || s.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null)
-              : (captainIdx !== null ? current[captainIdx]?.name ?? null : null);
-            const tcActiveForGw = gwSnapshots.length > 0
-              ? gwSnapshots.some((s) => s.is_captain === "TRIPLE_CAPTAIN")
-              : tcActive;
-            const boostChipForGw = gwSnapshots.length > 0
-              ? (gwSnapshots[0]?.boost_chip ?? null)
-              : currentBoostChip;
-            for (const slot of teamSlots) {
-              const stat = gw.players.find((p) => p.name === slot.player_name);
-              const base = stat?.points ?? 0;
-              const captainMult = slot.player_name === captainForGw ? (tcActiveForGw ? 3 : 2) : 1;
-              const isBoostSlot = !!(boostChipForGw && SLOTS[slot.slot_index]?.label === boostChipForGw.replace("_BOOST", ""));
-              total += base * (captainMult + (isBoostSlot ? 1 : 0));
-            }
-          }
-          total -= teamData?.points_deducted ?? 0;
-          onTotalPointsChange?.(total);
-        } else {
-          onTotalPointsChange?.(0);
-        }
-
         setLoaded(true);
       }
     );
-  }, [userEmail, onTotalPointsChange]);
+  }, [userEmail]);
 
   async function toggleBoostChip(chip: "DEF_BOOST" | "MID_BOOST" | "FWD_BOOST") {
     if (isLocked) return;
