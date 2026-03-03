@@ -225,32 +225,36 @@ export default function MyTeam({ userEmail }: Props) {
   const captainName = captainSlotIndex !== null ? slotPlayers[captainSlotIndex]?.name ?? null : null;
 
   return (
-    <div className="w-full md:w-60">
-      <p className="text-sm font-medium text-gray-600 mb-2">
-        Select captain for the upcoming gameweek
-      </p>
-      {isLocked && (
-        <p className="text-sm text-red-600 mb-2">
-          The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked by admin
+    <div className="flex flex-col items-center">
+      <div className="w-full md:w-96">
+        <p className="text-sm font-medium text-gray-600 mb-2">
+          Select captain for the upcoming gameweek
         </p>
-      )}
-      <Pitch
-        onSlotClick={isLocked ? undefined : selectCaptain}
-        slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
-        slotCaptains={slotPlayers.map((_, i) => i === captainSlotIndex)}
-        slotTripleCaptains={slotPlayers.map((_, i) => i === captainSlotIndex && tripleCaptainActive)}
-        slotBoosts={slotPlayers.map((_, i) => !!activeBoostChip && SLOTS[i]?.label === activeBoostChip.replace("_BOOST", ""))}
-      />
-      <p className="mt-3 text-sm text-gray-600">
-        Captain:{" "}
-        <span className="font-semibold text-gray-900">
-          {captainName ?? "Not selected"}
-        </span>
-      </p>
-      {savingCaptain && (
-        <p className="text-xs text-gray-400 mt-1">Saving captain…</p>
-      )}
-      <div className="mt-4">
+        {isLocked && (
+          <p className="text-sm text-red-600 mb-2">
+            The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked by admin
+          </p>
+        )}
+        <Pitch
+          onSlotClick={isLocked ? undefined : selectCaptain}
+          slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
+          slotCaptains={slotPlayers.map((_, i) => i === captainSlotIndex)}
+          slotTripleCaptains={slotPlayers.map((_, i) => i === captainSlotIndex && tripleCaptainActive)}
+          slotBoosts={slotPlayers.map((_, i) => !!activeBoostChip && SLOTS[i]?.label === activeBoostChip.replace("_BOOST", ""))}
+        />
+        <p className="mt-3 text-sm text-gray-600">
+          Captain:{" "}
+          <span className="font-semibold text-gray-900">
+            {captainName ?? "Not selected"}
+          </span>
+        </p>
+        {savingCaptain && (
+          <p className="text-xs text-gray-400 mt-1">Saving captain…</p>
+        )}
+      </div>
+
+      {/* Chips */}
+      <div className="w-full md:w-96 mt-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Chips</p>
         <button
           onClick={toggleTripleCaptain}

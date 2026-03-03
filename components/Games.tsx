@@ -166,7 +166,7 @@ export default function Games() {
   const rightTeam = homeAway === "away" ? "FC Möllan" : opponent;
 
   return (
-    <div className="w-full md:w-[34rem]">
+    <div className="w-full md:w-[34rem] md:mx-auto">
       {gameweeks.length > 0 && (
         <div className="flex items-center justify-between mb-3">
           <button

@@ -95,7 +95,7 @@ export default function League() {
 
   if (selected) {
     return (
-      <div>
+      <div className="md:w-96 md:mx-auto">
         <button
           onClick={() => setSelected(null)}
           className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-4"
@@ -113,7 +113,7 @@ export default function League() {
   }
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-md md:mx-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b border-gray-200">

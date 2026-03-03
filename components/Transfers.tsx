@@ -235,39 +235,9 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
 
   return (
     <>
-      <div className="flex flex-col md:flex-row gap-4 items-start">
-        {/* Player list */}
-        <div className="w-full md:w-64 md:flex-shrink-0">
-          {groups.map(({ pos, label, players: group }) => (
-            <div key={pos} className="mb-6">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                {label}
-              </h3>
-              <table className="w-full">
-                <tbody>
-                  {group.map((player) => (
-                    <tr
-                      key={player.name}
-                      className="border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => gameweeks.length > 0 && setHistoryPlayer(player.name)}
-                    >
-                      <td className="py-2 pr-2">
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
-                          {player.position}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-4 text-gray-900 text-sm">{player.name}</td>
-                      <td className="py-2 text-sm text-gray-400 whitespace-nowrap">£{player.price.toFixed(1)}m</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </div>
-
+      <div className="flex flex-col items-center">
         {/* Pitch */}
-        <div className="w-full md:w-60 md:flex-shrink-0 md:sticky md:top-8 order-first md:order-last">
+        <div className="w-full md:w-96">
           {isNewUser && (
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Choose your five a side team</h2>
           )}
@@ -319,6 +289,36 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
               {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
             </button>
           </div>
+        </div>
+
+        {/* Player list */}
+        <div className="w-full md:w-96 mt-8">
+          {groups.map(({ pos, label, players: group }) => (
+            <div key={pos} className="mb-6">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                {label}
+              </h3>
+              <table className="w-full">
+                <tbody>
+                  {group.map((player) => (
+                    <tr
+                      key={player.name}
+                      className="border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => gameweeks.length > 0 && setHistoryPlayer(player.name)}
+                    >
+                      <td className="py-2 pr-2">
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
+                          {player.position}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-gray-900 text-sm">{player.name}</td>
+                      <td className="py-2 text-sm text-gray-400 whitespace-nowrap">£{player.price.toFixed(1)}m</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       </div>
 

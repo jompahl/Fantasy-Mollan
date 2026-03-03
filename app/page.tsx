@@ -142,13 +142,13 @@ export default function Home() {
         <main className="flex-1 px-6 py-8">
           {activeTab === "My Team" && (
             <>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">{teamName}</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4 md:text-center">{teamName}</h2>
               <MyTeam userEmail={userEmail} />
             </>
           )}
           {activeTab === "Points" && (
             <>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between md:w-96 md:mx-auto">
                 <h2 className="text-2xl font-semibold text-gray-900">{teamName}</h2>
                 <span className="text-2xl font-semibold text-gray-900">{pointsTotalPoints} pts</span>
               </div>

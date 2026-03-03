@@ -272,7 +272,7 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
     : [];
 
   return (
-    <div className="w-full md:w-60">
+    <div className="w-full md:w-96 md:mx-auto">
       {/* Gameweek navigation */}
       {gameweeks.length > 0 && (
         <div className="flex items-center justify-between mb-3">

@@ -191,22 +191,20 @@ export default function Stats() {
   }
 
   return (
-    <div className="w-full max-w-5xl">
-      <h2 className="text-2xl font-semibold text-gray-900 mb-4">Dream team ⭐</h2>
-
-      <div className="w-full md:w-60">
+    <div className="w-full max-w-5xl flex flex-col items-center">
+      <div className="w-full md:w-96">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Dream team ⭐</h2>
         <Pitch
           slotPlayers={dreamTeam.map((p) => p?.name ?? null)}
           slotPoints={dreamTeam.map((p) => p?.points ?? null)}
         />
+        <button
+          onClick={() => setShowDetails(true)}
+          className="mt-4 px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          Open detailed stats view
+        </button>
       </div>
-
-      <button
-        onClick={() => setShowDetails(true)}
-        className="mt-4 px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
-      >
-        Open detailed stats view
-      </button>
 
       {showDetails && (
         <div
