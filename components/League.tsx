@@ -15,6 +15,7 @@ interface Standing {
 
 interface BestGw {
   teamName: string;
+  userEmail: string;
   points: number;
   gwNumber: number;
 }
@@ -24,6 +25,7 @@ export default function League() {
   const [bestGameweeks, setBestGameweeks] = useState<BestGw[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<Standing | null>(null);
+  const [selectedInitialGw, setSelectedInitialGw] = useState<number | undefined>(undefined);
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
 
@@ -94,7 +96,7 @@ export default function League() {
         }
 
         if (bestGwNumber > 0) {
-          bestGwResult.push({ teamName: team.team_name, points: bestGwPoints, gwNumber: bestGwNumber });
+          bestGwResult.push({ teamName: team.team_name, userEmail: email, points: bestGwPoints, gwNumber: bestGwNumber });
         }
 
         return {
@@ -120,13 +122,13 @@ export default function League() {
     return (
       <div className="md:w-96 md:mx-auto">
         <button
-          onClick={() => setSelected(null)}
+          onClick={() => { setSelected(null); setSelectedInitialGw(undefined); }}
           className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-4"
         >
           ← Back to league
         </button>
         <h2 className="text-2xl font-semibold text-gray-900 mb-4">{selected.teamName}</h2>
-        <Points userEmail={selected.userEmail} initialGameweeks={gameweeks} initialPlayers={players} />
+        <Points userEmail={selected.userEmail} initialGameweeks={gameweeks} initialPlayers={players} initialGwNumber={selectedInitialGw} />
       </div>
     );
   }
@@ -177,7 +179,11 @@ export default function League() {
               {bestGameweeks.map((entry, i) => (
                 <tr
                   key={entry.teamName}
-                  className={`border-b border-gray-100 ${i === 0 ? "font-semibold" : ""}`}
+                  onClick={() => {
+                    const standing = standings.find((s) => s.userEmail === entry.userEmail);
+                    if (standing) { setSelected(standing); setSelectedInitialGw(entry.gwNumber); }
+                  }}
+                  className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${i === 0 ? "font-semibold" : ""}`}
                 >
                   <td className="py-3 text-sm text-gray-400">{i + 1}</td>
                   <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>

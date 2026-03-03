@@ -19,9 +19,10 @@ interface Props {
   onTotalPointsChange?: (points: number) => void;
   initialGameweeks?: Gameweek[];
   initialPlayers?: Player[];
+  initialGwNumber?: number;
 }
 
-export default function Points({ userEmail, onTotalPointsChange, initialGameweeks, initialPlayers }: Props) {
+export default function Points({ userEmail, onTotalPointsChange, initialGameweeks, initialPlayers, initialGwNumber }: Props) {
   const [currentSlotPlayers, setCurrentSlotPlayers] = useState<(SlotPlayer | null)[]>(Array(5).fill(null));
   const [snapshots, setSnapshots] = useState<Map<number, (SlotPlayer | null)[]>>(new Map());
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
@@ -117,7 +118,12 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
           (gw) => snapshotGwNumbers.has(gw.number) && (joinedGameweek === null || gw.number >= joinedGameweek)
         );
         setGameweeks(eligibleGameweeks);
-        setCurrentGwIndex(Math.max(0, eligibleGameweeks.length - 1));
+        if (initialGwNumber !== undefined) {
+          const idx = eligibleGameweeks.findIndex((gw) => gw.number === initialGwNumber);
+          setCurrentGwIndex(idx >= 0 ? idx : Math.max(0, eligibleGameweeks.length - 1));
+        } else {
+          setCurrentGwIndex(Math.max(0, eligibleGameweeks.length - 1));
+        }
 
         // Compute overall total across all eligible GWs for the header callback
         let overallTotal = 0;
@@ -177,7 +183,7 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
       setCaptainName(currentCaptainName);
       setLoaded(true);
     });
-  }, [userEmail, initialGameweeks, initialPlayers]);
+  }, [userEmail, initialGameweeks, initialPlayers, initialGwNumber]);
 
   if (!loaded) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
