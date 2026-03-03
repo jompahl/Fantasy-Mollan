@@ -5,7 +5,6 @@ import Image from "next/image";
 import Pitch, { SLOTS } from "@/components/Pitch";
 import PlayerHistory from "@/components/PlayerHistory";
 import { supabase } from "@/lib/supabase";
-import { ensureSnapshots } from "@/lib/ensureSnapshots";
 import type { PlayerPoints, Gameweek } from "@/app/api/gameweek/route";
 import type { Player } from "@/app/api/players/route";
 
@@ -38,7 +37,7 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
   const [currentBoostChip, setCurrentBoostChip] = useState<string | null>(null);
 
   useEffect(() => {
-    ensureSnapshots(userEmail).then(() => Promise.all([
+    Promise.all([
       supabase
         .from("team_slots")
         .select("slot_index, player_name, player_position, player_price, is_captain")
@@ -153,7 +152,7 @@ export default function Points({ userEmail, onTotalPointsChange }: Props) {
 
       setCaptainName(currentCaptainName);
       setLoaded(true);
-    }));
+    });
   }, [userEmail]);
 
   if (!loaded) {

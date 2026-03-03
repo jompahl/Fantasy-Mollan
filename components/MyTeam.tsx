@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Pitch, { SLOTS } from "@/components/Pitch";
 import { supabase } from "@/lib/supabase";
 import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
-import { ensureSnapshots } from "@/lib/ensureSnapshots";
 
 type CaptainRole = "CAPTAIN" | "TRIPLE_CAPTAIN" | "NOT_CAPTAIN";
 
@@ -31,7 +30,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
   const { isLocked } = useGameweekDeadlineLock();
 
   useEffect(() => {
-    ensureSnapshots(userEmail).then(() => Promise.all([
+    Promise.all([
       supabase
         .from("team_slots")
         .select("slot_index, player_name, is_captain")
@@ -118,7 +117,7 @@ export default function MyTeam({ userEmail, onTotalPointsChange }: Props) {
 
         setLoaded(true);
       }
-    ));
+    );
   }, [userEmail, onTotalPointsChange]);
 
   async function toggleBoostChip(chip: "DEF_BOOST" | "MID_BOOST" | "FWD_BOOST") {

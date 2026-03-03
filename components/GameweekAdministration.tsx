@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
 
@@ -15,6 +15,17 @@ export default function GameweekAdministration() {
   const [timeValue, setTimeValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [calculateGwNumber, setCalculateGwNumber] = useState("");
+  const [calculating, setCalculating] = useState(false);
+  const [calculateMessage, setCalculateMessage] = useState<string | null>(null);
+  const [calculatedGwCount, setCalculatedGwCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/gameweek")
+      .then((r) => r.json())
+      .then((data) => setCalculatedGwCount((data.gameweeks ?? []).length))
+      .catch(() => setCalculatedGwCount(null));
+  }, []);
 
   const currentDeadlineLocal = useMemo(() => {
     if (!deadlineAt) return null;
@@ -58,6 +69,30 @@ export default function GameweekAdministration() {
     await refresh();
     setSaving(false);
     setMessage("Deadline saved.");
+  }
+
+  async function calculateGameweek() {
+    const gwNum = parseInt(calculateGwNumber, 10);
+    if (!gwNum || gwNum < 1) {
+      setCalculateMessage("Please enter a valid GW number.");
+      return;
+    }
+    setCalculating(true);
+    setCalculateMessage(null);
+    const res = await fetch("/api/admin/calculate-gameweek", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gwNumber: gwNum }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setCalculateMessage(`Error: ${data.error}`);
+    } else {
+      setCalculateMessage(
+        `GW ${data.gwNumber} calculated. ${data.usersSnapshotted} user${data.usersSnapshotted !== 1 ? "s" : ""} snapshotted, ${data.chipsReset} chip${data.chipsReset !== 1 ? "s" : ""} reset.`
+      );
+    }
+    setCalculating(false);
   }
 
   async function unlockGameweek() {
@@ -135,6 +170,50 @@ export default function GameweekAdministration() {
         >
           Unlock GW
         </button>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 p-4 bg-white">
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Calculate Gameweek</h3>
+        <p className="text-xs text-gray-500 mb-3">
+          Snapshots all users&apos; teams for the given GW and resets any active chips. Run this once per GW after the match is played.
+        </p>
+        <p className="text-xs text-gray-500 mb-3">
+          Gameweeks calculated:{" "}
+          <span className="font-semibold text-gray-700">
+            {calculatedGwCount !== null ? calculatedGwCount : "…"}
+          </span>
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center border border-gray-300 rounded-md overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setCalculateGwNumber((v) => String(Math.max(1, (parseInt(v, 10) || 1) - 1)))}
+              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium"
+            >
+              −
+            </button>
+            <span className="w-10 text-center text-sm font-semibold text-gray-900">
+              {calculateGwNumber || "—"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCalculateGwNumber((v) => String(Math.min(30, (parseInt(v, 10) || 0) + 1)))}
+              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium"
+            >
+              +
+            </button>
+          </div>
+          <button
+            onClick={calculateGameweek}
+            disabled={calculating || !calculateGwNumber}
+            className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
+          >
+            {calculating ? "Calculating…" : "Calculate"}
+          </button>
+        </div>
+        {calculateMessage && (
+          <p className="mt-2 text-sm text-gray-600">{calculateMessage}</p>
+        )}
       </div>
 
       <div className="mt-4 rounded-xl border border-gray-200 p-4 bg-gray-50 text-sm text-gray-700 space-y-1">
