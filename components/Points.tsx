@@ -38,6 +38,12 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
   const [loaded, setLoaded] = useState(false);
   const [snapshotBoostChips, setSnapshotBoostChips] = useState<Map<number, string>>(new Map());
   const [currentBoostChip, setCurrentBoostChip] = useState<string | null>(null);
+  const [gwAvg, setGwAvg] = useState<number | null>(null);
+  const [gwHigh, setGwHigh] = useState<number | null>(null);
+  const [gwHighEmail, setGwHighEmail] = useState<string | null>(null);
+  const [gwHighSnapshots, setGwHighSnapshots] = useState<Array<{ user_email: string; slot_index: number; player_name: string; is_captain: string | null; boost_chip: string | null }>>([]);
+  const [showHighScorer, setShowHighScorer] = useState(false);
+  const [gwHighTeamName, setGwHighTeamName] = useState<string | null>(null);
 
   useEffect(() => {
     const gwFetch = initialGameweeks
@@ -185,6 +191,59 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
     });
   }, [userEmail, initialGameweeks, initialPlayers, initialGwNumber]);
 
+  useEffect(() => {
+    if (!loaded || gameweeks.length === 0) return;
+    const gw = gameweeks[currentGwIndex];
+    if (!gw) return;
+
+    setGwHighTeamName(null);
+
+    const statsMap = new Map(gw.players.map((p) => [p.name, p.points]));
+
+    supabase
+      .from("gameweek_snapshots")
+      .select("user_email, slot_index, player_name, is_captain, boost_chip")
+      .eq("gameweek_number", gw.number)
+      .then(({ data }) => {
+        if (!data || data.length === 0) { setGwAvg(null); setGwHigh(null); setGwHighEmail(null); setGwHighSnapshots([]); return; }
+
+        const userMap = new Map<string, typeof data>();
+        for (const row of data) {
+          if (!userMap.has(row.user_email)) userMap.set(row.user_email, []);
+          userMap.get(row.user_email)!.push(row);
+        }
+
+        const userTotals = new Map<string, number>();
+        for (const [email, rows] of userMap) {
+          const capName = rows.find((r) => r.is_captain === "CAPTAIN" || r.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null;
+          const isTc = rows.some((r) => r.is_captain === "TRIPLE_CAPTAIN");
+          const boostChip = (rows[0] as { boost_chip?: string | null })?.boost_chip ?? null;
+          let total = 0;
+          for (const row of rows) {
+            const pts = statsMap.get(row.player_name) ?? 0;
+            const capMult = row.player_name === capName ? (isTc ? 3 : 2) : 1;
+            const isBoost = !!(boostChip && SLOTS[row.slot_index]?.label === boostChip.replace("_BOOST", ""));
+            total += pts * (capMult + (isBoost ? 1 : 0));
+          }
+          userTotals.set(email, total);
+        }
+
+        const totals = Array.from(userTotals.values());
+        if (totals.length === 0) { setGwAvg(null); setGwHigh(null); setGwHighEmail(null); setGwHighSnapshots([]); return; }
+
+        let high = -Infinity;
+        let highEmail: string | null = null;
+        for (const [email, total] of userTotals) {
+          if (total > high) { high = total; highEmail = email; }
+        }
+
+        setGwAvg(Math.round(totals.reduce((a, b) => a + b, 0) / totals.length));
+        setGwHigh(high);
+        setGwHighEmail(highEmail);
+        setGwHighSnapshots(highEmail ? (userMap.get(highEmail) ?? []) : []);
+      });
+  }, [loaded, gameweeks, currentGwIndex]);
+
   if (!loaded) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
   }
@@ -277,6 +336,28 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
       ]
     : [];
 
+  // High scorer team data (for modal)
+  const highSlots = Array(5).fill(null) as (SlotPlayer | null)[];
+  for (const row of gwHighSnapshots) {
+    highSlots[row.slot_index] = { name: row.player_name, position: "", price: 0 };
+  }
+  const highCapName = gwHighSnapshots.find((r) => r.is_captain === "CAPTAIN" || r.is_captain === "TRIPLE_CAPTAIN")?.player_name ?? null;
+  const highIsTc = gwHighSnapshots.some((r) => r.is_captain === "TRIPLE_CAPTAIN");
+  const highBoost = (gwHighSnapshots[0] as { boost_chip?: string | null } | undefined)?.boost_chip ?? null;
+  const gwPlayers = currentGameweek?.players ?? [];
+  const highSlotPoints = highSlots.map((p, i) => {
+    if (!p) return null;
+    const stat = gwPlayers.find((s) => s.name === p.name);
+    const base = stat?.points ?? 0;
+    const capMult = p.name === highCapName ? (highIsTc ? 3 : 2) : 1;
+    const isBoost = !!(highBoost && SLOTS[i]?.label === highBoost.replace("_BOOST", ""));
+    return base * (capMult + (isBoost ? 1 : 0));
+  });
+  const highSlotGoals = highSlots.map((p) => (!p ? null : gwPlayers.find((s) => s.name === p.name)?.goals ?? 0));
+  const highSlotAssists = highSlots.map((p) => (!p ? null : gwPlayers.find((s) => s.name === p.name)?.assists ?? 0));
+  const highSlotYellow = highSlots.map((p) => (!p ? null : gwPlayers.find((s) => s.name === p.name)?.yellowCards ?? 0));
+  const highSlotRed = highSlots.map((p) => (!p ? null : gwPlayers.find((s) => s.name === p.name)?.redCards ?? 0));
+
   return (
     <div className="w-full md:w-96 md:mx-auto">
       {/* Gameweek navigation */}
@@ -301,9 +382,6 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
           </button>
         </div>
       )}
-      <p className="text-sm font-medium text-gray-600 mb-2">
-        Gameweek points: {totalPoints}
-      </p>
       <Pitch
         onSlotClick={(i) => { setSelectedSlotIndex(i); setShowHistory(false); }}
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
@@ -316,6 +394,39 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
         slotTripleCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw && tcActiveForCurrentGw : false))}
         slotBoosts={slotPlayers.map((_, i) => !!boostChipForCurrentGw && SLOTS[i]?.label === boostChipForCurrentGw.replace("_BOOST", ""))}
       />
+
+      {/* GW points summary bar */}
+      <div className="mt-5 grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100 pt-4">
+        <div className="text-center px-2">
+          <div className="text-xl font-semibold text-gray-500">{gwAvg ?? "—"}</div>
+          <div className="text-xs text-gray-400 mt-0.5">Average</div>
+        </div>
+        <div className="text-center px-2">
+          <div className="text-3xl font-bold text-gray-900">{totalPoints}</div>
+          <div className="text-xs text-gray-400 mt-0.5">Points</div>
+        </div>
+        {gwHighEmail && gwHighEmail !== userEmail && gwHigh !== null ? (
+          <button
+            className="text-center px-2 w-full hover:bg-gray-50 rounded-lg transition-colors"
+            onClick={() => {
+              if (!gwHighTeamName) {
+                supabase.from("user_teams").select("team_name").eq("user_email", gwHighEmail).single()
+                  .then(({ data }) => setGwHighTeamName(data?.team_name ?? null));
+              }
+              setShowHighScorer(true);
+            }}
+          >
+            <div className="text-xl font-semibold text-gray-500">{gwHigh}</div>
+            <div className="text-xs text-gray-400 mt-0.5">Highest</div>
+            <div className="mt-1 text-gray-400 text-sm leading-none">↗</div>
+          </button>
+        ) : (
+          <div className="text-center px-2">
+            <div className="text-xl font-semibold text-gray-500">{gwHigh ?? "—"}</div>
+            <div className="text-xs text-gray-400 mt-0.5">Highest</div>
+          </div>
+        )}
+      </div>
 
       {(tcActiveForCurrentGw || boostChipForCurrentGw) && (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -424,6 +535,39 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHighScorer && gwHighEmail && currentGameweek && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setShowHighScorer(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">{gwHighTeamName ?? "…"}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Gameweek {currentGameweek.number} · {gwHigh} pts</p>
+              </div>
+              <button onClick={() => setShowHighScorer(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+            <div className="px-4 py-4">
+              <Pitch
+                slotPlayers={highSlots.map((p) => p?.name ?? null)}
+                slotPoints={highSlotPoints}
+                slotGoals={highSlotGoals}
+                slotAssists={highSlotAssists}
+                slotYellowCards={highSlotYellow}
+                slotRedCards={highSlotRed}
+                slotCaptains={highSlots.map((p) => (p?.name ? p.name === highCapName : false))}
+                slotTripleCaptains={highSlots.map((p) => (p?.name ? p.name === highCapName && highIsTc : false))}
+                slotBoosts={highSlots.map((_, i) => !!(highBoost && SLOTS[i]?.label === highBoost.replace("_BOOST", "")))}
+              />
             </div>
           </div>
         </div>
