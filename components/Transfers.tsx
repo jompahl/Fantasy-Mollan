@@ -58,6 +58,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
   const [pointsDeducted, setPointsDeducted] = useState(0);
   const [joinedGameweek, setJoinedGameweek] = useState<number | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [showTransferConfirm, setShowTransferConfirm] = useState(false);
   const [captainName, setCaptainName] = useState<string | null>(null);
   const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -124,7 +125,11 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
     BUDGET_START
   );
 
-  const pendingChanges = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
+  const savedNames = new Set(savedSlotPlayers.map((p) => p?.name).filter(Boolean));
+  const currentNames = new Set(slotPlayers.map((p) => p?.name).filter(Boolean));
+  const playersOut = savedSlotPlayers.filter((p) => p?.name && !currentNames.has(p.name)).map((p) => p!.name);
+  const playersIn = slotPlayers.filter((p) => p?.name && !savedNames.has(p.name)).map((p) => p!.name);
+  const pendingChanges = playersIn.length;
 
   // transfersBalance === null means unlimited (user hasn't had their first GW calculated yet)
   const isUnlimited = !slotsLoaded || transfersBalance === null;
@@ -187,7 +192,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
 
     // Deduct transfers from the bank. Unlimited (null) users pay nothing.
     if (transfersBalance !== null) {
-      const changes = slotPlayers.filter((p, i) => p?.name !== savedSlotPlayers[i]?.name).length;
+      const changes = pendingChanges;
       const extras = Math.max(0, changes - transfersBalance);
       const newBalance = Math.max(0, transfersBalance - changes);
       const updates: Record<string, number> = { transfers: newBalance };
@@ -200,7 +205,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
     setSavedSlotPlayers([...slotPlayers]);
     setSaving(false);
     setSaved(true);
-    if (isNewUser) onFirstSave?.();
+    onFirstSave?.();
   }
 
   if (error) {
@@ -282,11 +287,11 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
               Reset
             </button>
             <button
-              onClick={saveTeam}
+              onClick={isNewUser ? saveTeam : () => setShowTransferConfirm(true)}
               disabled={deadlineLocked || budget < 0 || saving || slotPlayers.some((p) => !p) || !slotPlayers.some((p, i) => p?.name !== savedSlotPlayers[i]?.name)}
               className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-900 text-white hover:bg-gray-700 disabled:hover:bg-gray-900"
             >
-              {saving ? "Saving…" : saved ? "Team saved!" : "Save team"}
+              {saving ? "Saving…" : saved ? "Team saved!" : isNewUser ? "Save team" : "Make transfers"}
             </button>
           </div>
         </div>
@@ -359,20 +364,24 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
             {selecting ? (
               <>
               <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-                {eligiblePlayers.map((player) => (
-                  <li key={player.name}>
-                    <button
-                      className="w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors text-left"
-                      onClick={() => selectPlayer(player)}
-                    >
-                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
-                        {player.position}
-                      </span>
-                      <span className="flex-1 text-gray-900 text-sm">{player.name}</span>
-                      <span className="text-sm text-gray-400 flex-shrink-0">£{player.price.toFixed(1)}m</span>
-                    </button>
-                  </li>
-                ))}
+                {eligiblePlayers.map((player) => {
+                  const isCurrent = player.name === slotPlayers[activeSlot]?.name;
+                  return (
+                    <li key={player.name}>
+                      <button
+                        disabled={isCurrent}
+                        className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-colors ${isCurrent ? "bg-gray-50 opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}`}
+                        onClick={() => selectPlayer(player)}
+                      >
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
+                          {player.position}
+                        </span>
+                        <span className="flex-1 text-gray-900 text-sm">{player.name}</span>
+                        <span className="text-sm text-gray-400 flex-shrink-0">£{player.price.toFixed(1)}m</span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
               </>
             ) : showHistory ? (
@@ -450,6 +459,55 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
             </div>
             <div className="px-6 py-4">
               <PlayerHistory playerName={historyPlayer} gameweeks={gameweeks} />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showTransferConfirm && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setShowTransferConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200">
+              <h3 className="text-base font-semibold text-gray-900">Confirm transfers</h3>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {playersOut.map((outName, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className="text-red-500 line-through flex-1">{outName}</span>
+                  <span className="text-gray-400">→</span>
+                  <span className="text-green-600 flex-1 text-right">{playersIn[i] ?? "—"}</span>
+                </div>
+              ))}
+              {extraTransfers > 0 && (
+                <p className="text-sm text-red-500 pt-1 border-t border-gray-100">
+                  {extraTransfers} extra transfer{extraTransfers > 1 ? "s" : ""} — you will be deducted <strong>{pointDeduction} points</strong>.
+                </p>
+              )}
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                onClick={() => {
+                  setSlotPlayers([...savedSlotPlayers]);
+                  setSaved(false);
+                  setShowTransferConfirm(false);
+                }}
+                className="flex-1 py-2.5 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Discard
+              </button>
+              <button
+                onClick={() => { setShowTransferConfirm(false); saveTeam(); }}
+                className="flex-1 py-2.5 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>,
