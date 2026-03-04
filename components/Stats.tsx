@@ -193,7 +193,7 @@ export default function Stats() {
   }
 
   return (
-    <div className="w-full max-w-5xl flex flex-col items-center">
+    <div className="w-full max-w-5xl flex flex-col items-center mx-auto">
       <div className="w-full md:w-96">
         <h2 className="text-2xl font-semibold text-gray-900 mb-4">Dream team ⭐</h2>
         <Pitch
@@ -238,11 +238,6 @@ export default function Stats() {
                     <th className="px-3 py-2">
                       <button onClick={() => toggleSort("name")} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Player{sortArrow("name")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2">
-                      <button onClick={() => toggleSort("position")} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Pos{sortArrow("position")}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
@@ -304,7 +299,6 @@ export default function Stats() {
                     return (
                       <tr key={p.name} className="border-b border-gray-100">
                         <td className="px-3 py-2 text-sm text-gray-900">{p.name}</td>
-                        <td className="px-3 py-2 text-sm text-gray-600">{normalizePosition(p.position)}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.gamesPlayed}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.minutes}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.goals}</td>

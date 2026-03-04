@@ -19,7 +19,7 @@ const RULES = [
 
 export default function Help() {
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full max-w-2xl md:mx-auto">
       <h2 className="text-xl font-semibold text-gray-900 mb-3">Points Rules</h2>
       <ul className="space-y-2">
         {RULES.map((rule) => (
