@@ -107,11 +107,12 @@ export interface TeamImage {
 interface EmblemPickerProps {
   current: string | null;
   teamImages: TeamImage[];
+  premierLeagueImages: TeamImage[];
   onSelect: (value: string) => void;
   onClose: () => void;
 }
 
-export default function EmblemPicker({ current, teamImages, onSelect, onClose }: EmblemPickerProps) {
+export default function EmblemPicker({ current, teamImages, premierLeagueImages, onSelect, onClose }: EmblemPickerProps) {
   return (
     <div
       className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
@@ -149,6 +150,27 @@ export default function EmblemPicker({ current, teamImages, onSelect, onClose }:
               ))}
             </div>
           </div>
+
+          {/* Premier league emblems */}
+          {premierLeagueImages.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Premier league</p>
+              <div className="grid grid-cols-4 gap-3">
+                {premierLeagueImages.map((team) => (
+                  <button
+                    key={team.imageUrl}
+                    onClick={() => { onSelect(team.imageUrl); onClose(); }}
+                    className={`p-2 rounded-lg transition-colors flex flex-col items-center gap-1 ${
+                      current === team.imageUrl ? "ring-2 ring-gray-900 bg-gray-100" : "hover:bg-gray-100"
+                    }`}
+                  >
+                    <img src={team.imageUrl} alt={team.name} className="w-10 h-10 object-contain" />
+                    <span className="text-xs text-gray-500 leading-tight text-center line-clamp-1">{team.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Team logos from sheet */}
           {teamImages.length > 0 && (
