@@ -215,10 +215,10 @@ export default function Stats() {
           onClick={() => setShowDetails(false)}
         >
           <div
-            className="w-full max-w-6xl max-h-[85vh] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            className="w-full max-w-6xl max-h-[85vh] bg-white rounded-2xl shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
               <h3 className="text-base font-semibold text-gray-900">Detailed stats</h3>
               <button
                 onClick={() => setShowDetails(false)}
@@ -228,14 +228,14 @@ export default function Stats() {
               </button>
             </div>
 
-            <div className="overflow-auto">
+            <div className="overflow-auto rounded-b-2xl">
               {gameweeks.length === 0 ? (
                 <p className="px-5 py-8 text-sm text-gray-500">No matches has been played yet</p>
               ) : null}
               {gameweeks.length > 0 && <table className="min-w-[1200px] w-full">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="px-3 py-2">
+                    <th className="px-3 py-2 sticky left-0 bg-gray-50 z-10">
                       <button onClick={() => toggleSort("name")} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Player{sortArrow("name")}
                       </button>
@@ -298,7 +298,7 @@ export default function Stats() {
                     const assistsPer90 = p.minutes > 0 ? (p.assists * 90) / p.minutes : 0;
                     return (
                       <tr key={p.name} className="border-b border-gray-100">
-                        <td className="px-3 py-2 text-sm text-gray-900">{p.name}</td>
+                        <td className="px-3 py-2 text-sm text-gray-900 sticky left-0 bg-white">{p.name}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.gamesPlayed}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.minutes}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.goals}</td>
