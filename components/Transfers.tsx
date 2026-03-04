@@ -59,6 +59,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
   const [joinedGameweek, setJoinedGameweek] = useState<number | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showTransferConfirm, setShowTransferConfirm] = useState(false);
+  const [mostTransferredIn, setMostTransferredIn] = useState<{ name: string; position: string; count: number }[]>([]);
   const [captainName, setCaptainName] = useState<string | null>(null);
   const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -119,6 +120,44 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
       setSlotsLoaded(true);
     })();
   }, [userEmail]);
+
+  useEffect(() => {
+    if (!calculatedGwCount || calculatedGwCount === 0 || !players) return;
+    Promise.all([
+      supabase.from("team_slots").select("user_email, player_name"),
+      supabase.from("gameweek_snapshots").select("user_email, player_name").eq("gameweek_number", calculatedGwCount),
+    ]).then(([{ data: slots }, { data: snapshots }]) => {
+      if (!slots || !snapshots) return;
+
+      const snapshotsByUser = new Map<string, Set<string>>();
+      for (const s of snapshots) {
+        if (s.player_name === "NO_PLAYER_SELECTED") continue;
+        if (!snapshotsByUser.has(s.user_email)) snapshotsByUser.set(s.user_email, new Set());
+        snapshotsByUser.get(s.user_email)!.add(s.player_name);
+      }
+
+      const counts = new Map<string, number>();
+      for (const slot of slots) {
+        const lastSnapshot = snapshotsByUser.get(slot.user_email);
+        if (!lastSnapshot) continue;
+        if (slot.player_name === "NO_PLAYER_SELECTED") continue;
+        if (!lastSnapshot.has(slot.player_name)) {
+          counts.set(slot.player_name, (counts.get(slot.player_name) ?? 0) + 1);
+        }
+      }
+
+      const top = Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name, count]) => ({
+          name,
+          count,
+          position: players.find((p) => p.name === name)?.position ?? "",
+        }));
+
+      setMostTransferredIn(top);
+    });
+  }, [calculatedGwCount, players]);
 
   const budget = slotPlayers.reduce(
     (remaining, p) => Math.round((remaining - (p?.price ?? 0)) * 10) / 10,
@@ -295,6 +334,24 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
             </button>
           </div>
         </div>
+
+        {/* Most transferred in */}
+        {mostTransferredIn.length > 0 && (
+          <div className="w-full md:w-96 mt-8">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Most transferred in</h3>
+            <div className="space-y-2">
+              {mostTransferredIn.map(({ name, position, count }) => (
+                <div key={name} className="flex items-center gap-3 py-2 border-b border-gray-100">
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${POSITION_STYLES[position] ?? "bg-gray-100 text-gray-600"}`}>
+                    {position}
+                  </span>
+                  <span className="flex-1 text-sm text-gray-900">{name}</span>
+                  <span className="text-xs text-gray-400 flex-shrink-0">{count} {count === 1 ? "team" : "teams"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Player list */}
         <div className="w-full md:w-96 mt-8">
