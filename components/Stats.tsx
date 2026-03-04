@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Pitch from "@/components/Pitch";
+import PlayerHistory from "@/components/PlayerHistory";
 import type { Gameweek, PlayerPoints } from "@/app/api/gameweek/route";
 
 interface PlayerAggregate {
@@ -83,6 +84,7 @@ export default function Stats() {
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -197,6 +199,7 @@ export default function Stats() {
         <Pitch
           slotPlayers={dreamTeam.map((p) => p?.name ?? null)}
           slotPoints={dreamTeam.map((p) => p?.points ?? null)}
+          onSlotClick={(i) => { const p = dreamTeam[i]; if (p) setSelectedPlayer(p.name); }}
         />
         <button
           onClick={() => setShowDetails(true)}
@@ -317,6 +320,31 @@ export default function Stats() {
                   })}
                 </tbody>
               </table>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedPlayer && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setSelectedPlayer(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">{selectedPlayer}</h3>
+              <button
+                onClick={() => setSelectedPlayer(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <PlayerHistory playerName={selectedPlayer} gameweeks={gameweeks} />
             </div>
           </div>
         </div>
