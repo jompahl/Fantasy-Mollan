@@ -465,7 +465,7 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
                   ←
                 </button>
               ) : null}
-              {!showHistory && selectedPlayer && (
+              {!showHistory && selectedPlayer && selectedStat && (
                 <div className="w-10 h-10 rounded-xl overflow-hidden border border-gray-200 bg-white mr-2">
                   <Image
                     src={selectedPlayerImage}
@@ -486,7 +486,7 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
                 </div>
               )}
               <h3 className="text-base font-semibold text-gray-900 flex-1">
-                {showHistory ? `${selectedPlayer?.name ?? "Player"} — History` : (selectedPlayer?.name ?? "Empty slot")}
+                {(showHistory || !selectedStat) ? `${selectedPlayer?.name ?? "Player"} — History` : (selectedPlayer?.name ?? "Empty slot")}
               </h3>
               <button
                 onClick={() => { setSelectedSlotIndex(null); setShowHistory(false); }}
@@ -499,10 +499,8 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
             <div className="px-5 py-4">
               {!selectedPlayer ? (
                 <p className="text-sm text-gray-500">No player selected in this slot.</p>
-              ) : showHistory ? (
+              ) : showHistory || !selectedStat ? (
                 <PlayerHistory playerName={selectedPlayer.name} gameweeks={gameweeks} />
-              ) : !selectedStat ? (
-                <p className="text-sm text-gray-500">No game data found for this player in this gameweek.</p>
               ) : (
                 <>
                   <p className="text-sm font-medium text-gray-700 mb-3">

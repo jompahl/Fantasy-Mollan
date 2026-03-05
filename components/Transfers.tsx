@@ -64,7 +64,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
   const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyPlayer, setHistoryPlayer] = useState<string | null>(null);
-  const { isLocked: deadlineLocked } = useGameweekDeadlineLock();
+  const { isLocked: deadlineLocked, deadlineAt } = useGameweekDeadlineLock();
 
   // Load players from sheet + latest calculated gameweek from snapshots
   useEffect(() => {
@@ -293,7 +293,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
           )}
           {deadlineLocked && (
             <p className="text-sm text-red-600 mb-2">
-              The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked
+              The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is calculated, stay tuned
             </p>
           )}
           <p className="text-sm font-medium text-gray-600 mb-0.5">
@@ -323,6 +323,17 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
             slotPrices={slotPlayers.map((p) => p?.price ?? null)}
             highlightEmpty={isNewUser}
           />
+          {deadlineAt && !deadlineLocked && calculatedGwCount !== null && calculatedGwCount > 0 && (() => {
+            const d = new Date(deadlineAt);
+            const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const formatted = `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+            return (
+              <p className="mt-3 text-sm font-medium text-gray-600">
+                Gameweek {calculatedGwCount + 1} - Deadline: {formatted}
+              </p>
+            );
+          })()}
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => { setSlotPlayers([...savedSlotPlayers]); setSaved(false); }}

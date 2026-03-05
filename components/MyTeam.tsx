@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Pitch, { SLOTS } from "@/components/Pitch";
+import PlayerHistory from "@/components/PlayerHistory";
 import { supabase } from "@/lib/supabase";
 import { useGameweekDeadlineLock } from "@/components/useGameweekDeadlineLock";
+import type { Gameweek } from "@/app/api/gameweek/route";
 
 type CaptainRole = "CAPTAIN" | "TRIPLE_CAPTAIN" | "NOT_CAPTAIN";
 
@@ -26,7 +28,10 @@ export default function MyTeam({ userEmail }: Props) {
   const [fwdBoostGw, setFwdBoostGw] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [savingCaptain, setSavingCaptain] = useState(false);
-  const { isLocked } = useGameweekDeadlineLock();
+  const [upcomingGwNumber, setUpcomingGwNumber] = useState<number | null>(null);
+  const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  const { isLocked, deadlineAt } = useGameweekDeadlineLock();
 
   useEffect(() => {
     Promise.all([
@@ -43,8 +48,15 @@ export default function MyTeam({ userEmail }: Props) {
         .from("gameweek_snapshots")
         .select("gameweek_number, slot_index, player_name, is_captain, boost_chip")
         .eq("user_email", userEmail),
+      supabase
+        .from("gameweek_snapshots")
+        .select("gameweek_number")
+        .order("gameweek_number", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      fetch("/api/gameweek").then((r) => r.json()),
     ]).then(
-      ([{ data: slotData }, { data: teamData }, { data: snapshotData }]) => {
+      ([{ data: slotData }, { data: teamData }, { data: snapshotData }, { data: latestSnapshot }, gwData]) => {
         const snapshots =
           (snapshotData as Array<{
             gameweek_number: number;
@@ -78,6 +90,10 @@ export default function MyTeam({ userEmail }: Props) {
         setCaptainSlotIndex(captainIdx);
         setTripleCaptainActive(tcActive);
 
+        const maxGw = (latestSnapshot as { gameweek_number?: number } | null)?.gameweek_number ?? null;
+        setUpcomingGwNumber(maxGw !== null ? maxGw + 1 : null);
+
+        setGameweeks(gwData.gameweeks ?? []);
         setLoaded(true);
       }
     );
@@ -146,19 +162,30 @@ export default function MyTeam({ userEmail }: Props) {
 
   const captainName = captainSlotIndex !== null ? slotPlayers[captainSlotIndex]?.name ?? null : null;
 
+  function formatDeadline(iso: string): string {
+    const d = new Date(iso);
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  const headingText = deadlineAt && !isLocked && upcomingGwNumber !== null
+    ? `Gameweek ${upcomingGwNumber} - Deadline: ${formatDeadline(deadlineAt)}`
+    : "Select captain for the upcoming gameweek";
+
   return (
     <div className="flex flex-col items-center">
       <div className="w-full md:w-96">
         <p className="text-sm font-medium text-gray-600 mb-2">
-          Select captain for the upcoming gameweek
+          {headingText}
         </p>
         {isLocked && (
           <p className="text-sm text-red-600 mb-2">
-            The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is unlocked by admin
+            The deadline for the upcoming gameweek has passed, no transfers or captain selections can be made until the gameweek is calculated, stay tuned
           </p>
         )}
         <Pitch
-          onSlotClick={isLocked ? undefined : selectCaptain}
+          onSlotClick={(i) => setSelectedSlotIndex(i)}
           slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
           slotCaptains={slotPlayers.map((_, i) => i === captainSlotIndex)}
           slotTripleCaptains={slotPlayers.map((_, i) => i === captainSlotIndex && tripleCaptainActive)}
@@ -255,6 +282,50 @@ export default function MyTeam({ userEmail }: Props) {
           </span>
         </button>
       </div>
+
+      {selectedSlotIndex !== null && slotPlayers[selectedSlotIndex] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setSelectedSlotIndex(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+              <h3 className="text-base font-semibold text-gray-900">
+                {slotPlayers[selectedSlotIndex]!.name} — History
+              </h3>
+              <button
+                onClick={() => setSelectedSlotIndex(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <PlayerHistory
+                playerName={slotPlayers[selectedSlotIndex]!.name}
+                gameweeks={gameweeks}
+              />
+            </div>
+            {!isLocked && (
+              <div className="px-5 pb-4 pt-2 flex-shrink-0">
+                <button
+                  onClick={async () => {
+                    await selectCaptain(selectedSlotIndex);
+                    setSelectedSlotIndex(null);
+                  }}
+                  disabled={savingCaptain}
+                  className="w-full py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                >
+                  {savingCaptain ? "Saving…" : "Select as captain"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

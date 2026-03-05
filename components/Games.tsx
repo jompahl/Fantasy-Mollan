@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import type { Gameweek, PlayerPoints } from "@/app/api/gameweek/route";
 import type { Player } from "@/app/api/players/route";
+import { supabase } from "@/lib/supabase";
 
 interface PositionedPlayer {
   name: string;
@@ -91,10 +92,16 @@ export default function Games() {
     Promise.all([
       fetch("/api/gameweek").then((r) => r.json() as Promise<{ gameweeks?: Gameweek[]; error?: string }>),
       fetch("/api/players").then((r) => r.json() as Promise<{ players?: Player[]; error?: string }>),
+      supabase
+        .from("gameweek_snapshots")
+        .select("gameweek_number"),
     ])
-      .then(([gameweekData, playersData]) => {
-        const calculatedGameweeks = gameweekData.gameweeks ?? [];
+      .then(([gameweekData, playersData, { data: snapshotRows }]) => {
+        const allGameweeks = gameweekData.gameweeks ?? [];
         const players = playersData.players ?? [];
+
+        const snapshotGwNumbers = new Set((snapshotRows ?? []).map((r) => r.gameweek_number));
+        const calculatedGameweeks = allGameweeks.filter((gw) => snapshotGwNumbers.has(gw.number));
 
         const positionMap = new Map<string, string>();
         const imageMap = new Map<string, string>();
@@ -113,6 +120,7 @@ export default function Games() {
         setPlayerImageRotations(imageRotationMap);
         setGameweeks(calculatedGameweeks);
         setCurrentGwIndex(Math.max(0, calculatedGameweeks.length - 1));
+
         setLoaded(true);
       })
       .catch(() => {

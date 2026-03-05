@@ -172,8 +172,24 @@ export default function GameweekAdministration() {
         </button>
       </div>
 
+      <div className="mt-4 rounded-xl border border-gray-200 p-4 bg-gray-50 text-sm text-gray-700 space-y-1">
+        <p>
+          Current deadline:{" "}
+          <span className="font-semibold">
+            {currentDeadlineLocal ? currentDeadlineLocal.toLocaleString() : "Not set"}
+          </span>
+        </p>
+        <p>
+          Transfer/Captain lock:{" "}
+          <span className={`font-semibold ${isLocked ? "text-red-600" : "text-green-600"}`}>
+            {isLocked ? "Locked" : "Open"}
+          </span>
+        </p>
+        {message && <p className="text-gray-600">{message}</p>}
+      </div>
+
       <div className="mt-6 rounded-xl border border-gray-200 p-4 bg-white">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Calculate Gameweek</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Save Snapshots</h3>
         <p className="text-xs text-gray-500 mb-3">
           Snapshots all users&apos; teams for the given GW and resets any active chips. Run this once per GW after the match is played.
         </p>
@@ -208,28 +224,12 @@ export default function GameweekAdministration() {
             disabled={calculating || !calculateGwNumber}
             className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
           >
-            {calculating ? "Calculating…" : "Calculate"}
+            {calculating ? "Saving…" : "Save snapshots"}
           </button>
         </div>
         {calculateMessage && (
           <p className="mt-2 text-sm text-gray-600">{calculateMessage}</p>
         )}
-      </div>
-
-      <div className="mt-4 rounded-xl border border-gray-200 p-4 bg-gray-50 text-sm text-gray-700 space-y-1">
-        <p>
-          Current deadline:{" "}
-          <span className="font-semibold">
-            {currentDeadlineLocal ? currentDeadlineLocal.toLocaleString() : "Not set"}
-          </span>
-        </p>
-        <p>
-          Transfer/Captain lock:{" "}
-          <span className={`font-semibold ${isLocked ? "text-red-600" : "text-green-600"}`}>
-            {isLocked ? "Locked" : "Open"}
-          </span>
-        </p>
-        {message && <p className="text-gray-600">{message}</p>}
       </div>
     </div>
   );
