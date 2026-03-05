@@ -121,86 +121,8 @@ export default function MyTeam({ userEmail }: Props) {
     const slot = slotPlayers[slotIndex];
     if (!slot) return;
 
-    const previousCaptainName = captainSlotIndex !== null ? slotPlayers[captainSlotIndex]?.name ?? null : null;
-    const previousRole: CaptainRole = tripleCaptainActive ? "TRIPLE_CAPTAIN" : "CAPTAIN";
     setCaptainSlotIndex(slotIndex);
     setSavingCaptain(true);
-
-    // Freeze captain history for all calculated gameweeks before changing captain.
-    const gwData = await fetch("/api/gameweek").then((r) => r.json());
-    const calculatedGameweeks: { number: number }[] = gwData.gameweeks ?? [];
-    if (calculatedGameweeks.length > 0) {
-      const [{ data: existingSnapshots }, { data: teamSlots }] = await Promise.all([
-        supabase
-          .from("gameweek_snapshots")
-          .select("gameweek_number, slot_index, player_name, player_position, player_price, is_captain")
-          .eq("user_email", userEmail),
-        supabase
-          .from("team_slots")
-          .select("slot_index, player_name, player_position, player_price")
-          .eq("user_email", userEmail),
-      ]);
-
-      const snapshotByGw = new Map<number, {
-        gameweek_number: number;
-        slot_index: number;
-        player_name: string;
-        player_position: string;
-        player_price: number;
-        is_captain?: string | null;
-      }[]>();
-      for (const row of existingSnapshots ?? []) {
-        if (!snapshotByGw.has(row.gameweek_number)) snapshotByGw.set(row.gameweek_number, []);
-        snapshotByGw.get(row.gameweek_number)!.push(row);
-      }
-
-      const insertRows = [];
-      for (const gw of calculatedGameweeks) {
-        if (!snapshotByGw.has(gw.number)) {
-          for (const row of teamSlots ?? []) {
-            const isCap = previousCaptainName !== null && row.player_name === previousCaptainName;
-            insertRows.push({
-              user_email: userEmail,
-              gameweek_number: gw.number,
-              slot_index: row.slot_index,
-              player_name: row.player_name,
-              player_position: row.player_position,
-              player_price: row.player_price,
-              is_captain: isCap ? previousRole : "NOT_CAPTAIN",
-            });
-          }
-        }
-      }
-
-      if (insertRows.length > 0) {
-        await supabase.from("gameweek_snapshots").insert(insertRows);
-      }
-
-      const existingGwNumbers = calculatedGameweeks
-        .map((g) => g.number)
-        .filter((gwNumber) => snapshotByGw.has(gwNumber));
-
-      for (const gwNumber of existingGwNumbers) {
-        const gwRows = snapshotByGw.get(gwNumber) ?? [];
-        const isFrozen = gwRows.some((r) => r.is_captain !== null && r.is_captain !== undefined);
-        if (isFrozen) continue;
-
-        await supabase
-          .from("gameweek_snapshots")
-          .update({ is_captain: "NOT_CAPTAIN" })
-          .eq("user_email", userEmail)
-          .eq("gameweek_number", gwNumber);
-
-        if (previousCaptainName) {
-          await supabase
-            .from("gameweek_snapshots")
-            .update({ is_captain: previousRole })
-            .eq("user_email", userEmail)
-            .eq("gameweek_number", gwNumber)
-            .eq("player_name", previousCaptainName);
-        }
-      }
-    }
 
     // Update team_slots: clear all captains then set the new one
     await supabase

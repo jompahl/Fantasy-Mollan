@@ -66,16 +66,22 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
   const [historyPlayer, setHistoryPlayer] = useState<string | null>(null);
   const { isLocked: deadlineLocked } = useGameweekDeadlineLock();
 
-  // Load players from sheet + number of calculated gameweeks
+  // Load players from sheet + latest calculated gameweek from snapshots
   useEffect(() => {
     Promise.all([
       fetch("/api/players").then((r) => r.json()),
       fetch("/api/gameweek").then((r) => r.json()),
+      supabase
+        .from("gameweek_snapshots")
+        .select("gameweek_number")
+        .order("gameweek_number", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
-      .then(([playerData, gwData]) => {
+      .then(([playerData, gwData, { data: latestSnapshot }]) => {
         if (playerData.error) throw new Error();
         setPlayers(playerData.players);
-        setCalculatedGwCount(gwData.gameweeks?.length ?? 0);
+        setCalculatedGwCount(latestSnapshot?.gameweek_number ?? 0);
         setGameweeks(gwData.gameweeks ?? []);
       })
       .catch(() => setError(true));

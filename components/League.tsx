@@ -12,6 +12,7 @@ interface Standing {
   teamName: string;
   userEmail: string;
   totalPoints: number;
+  latestGwPoints: number | null;
   emblem: string | null;
 }
 
@@ -67,12 +68,15 @@ export default function League() {
         statsByGw.set(gw.number, map);
       }
 
+      const latestGwNumber = allGameweeks.length > 0 ? allGameweeks[allGameweeks.length - 1].number : null;
+
       const bestGwResult: BestGw[] = [];
       const result: Standing[] = (teams ?? []).map((team) => {
         const email = team.user_email;
         let totalPoints = 0;
         let bestGwPoints = 0;
         let bestGwNumber = 0;
+        let latestGwPoints: number | null = null;
 
         const joinedGameweek: number | null = (team as { joined_gameweek?: number | null }).joined_gameweek ?? null;
 
@@ -97,6 +101,8 @@ export default function League() {
           }
           totalPoints += gwPoints;
 
+          if (gw.number === latestGwNumber) latestGwPoints = gwPoints;
+
           if (gwPoints > bestGwPoints) {
             bestGwPoints = gwPoints;
             bestGwNumber = gw.number;
@@ -113,6 +119,7 @@ export default function League() {
           teamName: team.team_name,
           userEmail: email,
           totalPoints: totalPoints - (team.points_deducted ?? 0),
+          latestGwPoints,
           emblem,
         };
       });
@@ -157,7 +164,8 @@ export default function League() {
             <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
             <th className="pb-2 w-8" />
             <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Team</th>
-            <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Pts</th>
+            <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">GW</th>
+            <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -170,6 +178,7 @@ export default function League() {
               <td className="py-3 text-sm text-gray-400">{i + 1}</td>
               <td className="py-2"><TeamEmblem emblem={entry.emblem} /></td>
               <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>
+              <td className="py-3 text-sm text-gray-400 text-right">{entry.latestGwPoints ?? "—"}</td>
               <td className="py-3 text-sm text-gray-900 text-right">{entry.totalPoints}</td>
             </tr>
           ))}
