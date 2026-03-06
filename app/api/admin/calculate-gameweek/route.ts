@@ -127,11 +127,63 @@ export async function POST(request: NextRequest) {
 
     const usersSnapshotted = new Set(snapshotRows.map((r) => (r as { user_email: string }).user_email)).size;
 
+    // Update player prices based on net transfers vs previous GW
+    let pricesUpdated = 0;
+    if (gwNumber > 1) {
+      const { data: prevSnapshots } = await supabase
+        .from("gameweek_snapshots")
+        .select("user_email, player_name")
+        .eq("gameweek_number", gwNumber - 1);
+
+      if (prevSnapshots && prevSnapshots.length > 0) {
+        // Build previous squad per user
+        const prevByUser = new Map<string, Set<string>>();
+        for (const s of prevSnapshots) {
+          if (s.player_name === "NO_PLAYER_SELECTED") continue;
+          if (!prevByUser.has(s.user_email)) prevByUser.set(s.user_email, new Set());
+          prevByUser.get(s.user_email)!.add(s.player_name);
+        }
+
+        // Build current squad per user (allSlots already fetched above)
+        const currentByUser = new Map<string, Set<string>>();
+        for (const s of allSlots ?? []) {
+          if (!currentByUser.has(s.user_email)) currentByUser.set(s.user_email, new Set());
+          currentByUser.get(s.user_email)!.add(s.player_name);
+        }
+
+        // Count transfers in / out per player across all users who had a previous GW
+        const transfersIn = new Map<string, number>();
+        const transfersOut = new Map<string, number>();
+        for (const [email, prevPlayers] of prevByUser) {
+          const currPlayers = currentByUser.get(email) ?? new Set<string>();
+          for (const p of prevPlayers) {
+            if (!currPlayers.has(p)) transfersOut.set(p, (transfersOut.get(p) ?? 0) + 1);
+          }
+          for (const p of currPlayers) {
+            if (!prevPlayers.has(p)) transfersIn.set(p, (transfersIn.get(p) ?? 0) + 1);
+          }
+        }
+
+        // Apply ±0.1 price changes
+        const { data: playerRows } = await supabase.from("players").select("name, current_price");
+        for (const player of playerRows ?? []) {
+          const inCount = transfersIn.get(player.name) ?? 0;
+          const outCount = transfersOut.get(player.name) ?? 0;
+          if (inCount === outCount) continue;
+          const delta = inCount > outCount ? 0.1 : -0.1;
+          const newPrice = Math.max(0.1, Math.round((player.current_price + delta) * 10) / 10);
+          await supabase.from("players").update({ current_price: newPrice }).eq("name", player.name);
+          pricesUpdated++;
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       gwNumber,
       usersSnapshotted,
       chipsReset: usersToResetBoost.length + usersToResetTC.length,
+      pricesUpdated,
     });
   } catch {
     return NextResponse.json({ error: "Failed to calculate gameweek" }, { status: 500 });

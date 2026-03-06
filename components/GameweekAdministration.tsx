@@ -19,6 +19,8 @@ export default function GameweekAdministration() {
   const [calculating, setCalculating] = useState(false);
   const [calculateMessage, setCalculateMessage] = useState<string | null>(null);
   const [calculatedGwCount, setCalculatedGwCount] = useState<number | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/gameweek")
@@ -71,6 +73,19 @@ export default function GameweekAdministration() {
     setMessage("Deadline saved.");
   }
 
+  async function seedPlayers() {
+    setSeeding(true);
+    setSeedMessage(null);
+    const res = await fetch("/api/admin/seed-players", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      setSeedMessage(`Error: ${data.error}`);
+    } else {
+      setSeedMessage(`Done. ${data.seeded} player${data.seeded !== 1 ? "s" : ""} seeded from sheet.`);
+    }
+    setSeeding(false);
+  }
+
   async function calculateGameweek() {
     const gwNum = parseInt(calculateGwNumber, 10);
     if (!gwNum || gwNum < 1) {
@@ -89,7 +104,7 @@ export default function GameweekAdministration() {
       setCalculateMessage(`Error: ${data.error}`);
     } else {
       setCalculateMessage(
-        `GW ${data.gwNumber} calculated. ${data.usersSnapshotted} user${data.usersSnapshotted !== 1 ? "s" : ""} snapshotted, ${data.chipsReset} chip${data.chipsReset !== 1 ? "s" : ""} reset.`
+        `GW ${data.gwNumber} calculated. ${data.usersSnapshotted} user${data.usersSnapshotted !== 1 ? "s" : ""} snapshotted, ${data.chipsReset} chip${data.chipsReset !== 1 ? "s" : ""} reset, ${data.pricesUpdated ?? 0} player price${(data.pricesUpdated ?? 0) !== 1 ? "s" : ""} updated.`
       );
     }
     setCalculating(false);
@@ -229,6 +244,23 @@ export default function GameweekAdministration() {
         </div>
         {calculateMessage && (
           <p className="mt-2 text-sm text-gray-600">{calculateMessage}</p>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 p-4 bg-white">
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Seed Players</h3>
+        <p className="text-xs text-gray-500 mb-3">
+          One-time import of all players from the sheet into the database. Safe to re-run — existing players and their prices are never overwritten, only new players are added.
+        </p>
+        <button
+          onClick={seedPlayers}
+          disabled={seeding}
+          className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
+        >
+          {seeding ? "Seeding…" : "Seed players from sheet"}
+        </button>
+        {seedMessage && (
+          <p className="mt-2 text-sm text-gray-600">{seedMessage}</p>
         )}
       </div>
     </div>
