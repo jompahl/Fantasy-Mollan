@@ -354,7 +354,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
             highlightEmpty={isNewUser && !pendingPlayer}
             highlightSlots={highlightedSlots}
           />
-          {deadlineAt && !deadlineLocked && calculatedGwCount !== null && calculatedGwCount > 0 && (() => {
+          {deadlineAt && !deadlineLocked && calculatedGwCount !== null && (() => {
             const d = new Date(deadlineAt);
             const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

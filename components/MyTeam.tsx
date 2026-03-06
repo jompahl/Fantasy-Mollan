@@ -91,8 +91,8 @@ export default function MyTeam({ userEmail }: Props) {
         setCaptainSlotIndex(captainIdx);
         setTripleCaptainActive(tcActive);
 
-        const maxGw = (latestSnapshot as { gameweek_number?: number } | null)?.gameweek_number ?? null;
-        setUpcomingGwNumber(maxGw !== null ? maxGw + 1 : null);
+        const maxGw = (latestSnapshot as { gameweek_number?: number } | null)?.gameweek_number ?? 0;
+        setUpcomingGwNumber(maxGw + 1);
 
         setGameweeks(gwData.gameweeks ?? []);
         setLoaded(true);
