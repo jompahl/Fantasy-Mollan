@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Pitch from "@/components/Pitch";
 import PlayerHistory from "@/components/PlayerHistory";
+import { supabase } from "@/lib/supabase";
 import type { Gameweek, PlayerPoints } from "@/app/api/gameweek/route";
 
 interface PlayerAggregate {
@@ -89,10 +90,14 @@ export default function Stats() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   useEffect(() => {
-    fetch("/api/gameweek")
-      .then((r) => r.json())
-      .then((data: { gameweeks?: Gameweek[]; error?: string }) => {
-        setGameweeks(data.gameweeks ?? []);
+    Promise.all([
+      fetch("/api/gameweek").then((r) => r.json()),
+      supabase.from("gameweek_snapshots").select("gameweek_number"),
+    ])
+      .then(([data, { data: snapshotData }]: [{ gameweeks?: Gameweek[]; error?: string }, { data: { gameweek_number: number }[] | null }]) => {
+        const snapshotGwNumbers = new Set((snapshotData ?? []).map((r) => r.gameweek_number));
+        const allGameweeks: Gameweek[] = data.gameweeks ?? [];
+        setGameweeks(allGameweeks.filter((gw) => snapshotGwNumbers.has(gw.number)));
         setLoaded(true);
       })
       .catch(() => {

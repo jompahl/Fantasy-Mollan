@@ -249,7 +249,7 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
   }
 
   if (gameweeks.length === 0) {
-    return <p className="text-gray-400 text-sm">No games have been played yet.</p>;
+    return <div className="w-full md:w-96 md:mx-auto"><p className="text-gray-400 text-sm">No games have been played yet.</p></div>;
   }
 
   const currentGameweek = gameweeks[currentGwIndex];

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Gameweek } from "@/app/api/gameweek/route";
+import { supabase } from "@/lib/supabase";
 
 interface Props {
   playerName: string;
@@ -10,6 +11,20 @@ interface Props {
 
 export default function PlayerHistory({ playerName, gameweeks }: Props) {
   const [expandedGw, setExpandedGw] = useState<number | null>(null);
+  const [snapshotGwNumbers, setSnapshotGwNumbers] = useState<Set<number> | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("gameweek_snapshots")
+      .select("gameweek_number")
+      .then(({ data }) => {
+        setSnapshotGwNumbers(new Set((data ?? []).map((r) => r.gameweek_number)));
+      });
+  }, []);
+
+  const displayGameweeks = snapshotGwNumbers !== null
+    ? gameweeks.filter((gw) => snapshotGwNumbers.has(gw.number))
+    : gameweeks;
 
   return (
     <div className="max-h-80 overflow-y-auto -mx-5 px-5">
@@ -22,7 +37,7 @@ export default function PlayerHistory({ playerName, gameweeks }: Props) {
         <span className="w-7 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Pts</span>
       </div>
 
-      {gameweeks.map((gw) => {
+      {displayGameweeks.map((gw) => {
         const stat = gw.players.find((p) => p.name === playerName);
         const [rawHome, rawAway] = (gw.score ?? "").split("-").map(Number);
         const mollanGoals = gw.homeAway === "home" ? rawHome : rawAway;

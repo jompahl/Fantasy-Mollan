@@ -64,6 +64,8 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
   const [tripleCaptainActive, setTripleCaptainActive] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyPlayer, setHistoryPlayer] = useState<string | null>(null);
+  const [pendingListPlayer, setPendingListPlayer] = useState<Player | null>(null);
+  const [pendingPlayer, setPendingPlayer] = useState<Player | null>(null);
   const { isLocked: deadlineLocked, deadlineAt } = useGameweekDeadlineLock();
 
   // Load players from sheet + latest calculated gameweek from snapshots
@@ -192,6 +194,27 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
     setShowHistory(false);
   }
 
+  function handleSlotClick(index: number) {
+    if (deadlineLocked) return;
+    if (pendingPlayer) {
+      const matchingSlots = SLOTS.reduce<number[]>((acc, s, i) => {
+        if (s.label === fantasyPosition(pendingPlayer.position)) acc.push(i);
+        return acc;
+      }, []);
+      if (matchingSlots.includes(index)) {
+        setSlotPlayers((prev) => {
+          const next = [...prev];
+          next[index] = pendingPlayer;
+          return next;
+        });
+        setSaved(false);
+      }
+      setPendingPlayer(null);
+      return;
+    }
+    openSlot(index);
+  }
+
   function closeModal() {
     setActiveSlot(null);
     setSelecting(false);
@@ -261,6 +284,13 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
   }
 
+  const highlightedSlots = pendingPlayer
+    ? SLOTS.reduce<number[]>((acc, s, i) => {
+        if (s.label === fantasyPosition(pendingPlayer.position)) acc.push(i);
+        return acc;
+      }, [])
+    : [];
+
   const groups = POSITION_ORDER
     .map((pos) => ({
       pos,
@@ -318,10 +348,11 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
           )}
           {budget >= 0 && pointDeduction === 0 && <div className="mb-2" />}
           <Pitch
-            onSlotClick={deadlineLocked ? undefined : openSlot}
+            onSlotClick={deadlineLocked ? undefined : handleSlotClick}
             slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
             slotPrices={slotPlayers.map((p) => p?.price ?? null)}
-            highlightEmpty={isNewUser}
+            highlightEmpty={isNewUser && !pendingPlayer}
+            highlightSlots={highlightedSlots}
           />
           {deadlineAt && !deadlineLocked && calculatedGwCount !== null && calculatedGwCount > 0 && (() => {
             const d = new Date(deadlineAt);
@@ -383,7 +414,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
                     <tr
                       key={player.name}
                       className="border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => gameweeks.length > 0 && setHistoryPlayer(player.name)}
+                      onClick={() => setPendingListPlayer(player)}
                     >
                       <td className="py-2 pr-2">
                         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
@@ -492,7 +523,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
                 ) : (
                   <p className="text-gray-400 text-sm mb-5">No player selected</p>
                 )}
-                {slotPlayers[activeSlot] && gameweeks.length > 0 && (
+                {slotPlayers[activeSlot] && calculatedGwCount !== null && calculatedGwCount > 0 && (
                   <button
                     onClick={() => setShowHistory(true)}
                     className="w-full mb-3 py-2.5 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
@@ -512,6 +543,70 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
         </div>,
         document.body
       )}
+      {/* Pending player banner */}
+      {pendingPlayer && (
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 px-4 pointer-events-none">
+          <div className="bg-gray-900 text-white rounded-full px-4 py-3 flex items-center gap-3 shadow-lg text-sm pointer-events-auto">
+            <span>Tap a highlighted slot to place <strong>{pendingPlayer.name}</strong></span>
+            <button
+              onClick={() => setPendingPlayer(null)}
+              className="text-gray-400 hover:text-white transition-colors text-base leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Player list modal (Add to squad) */}
+      {pendingListPlayer !== null && createPortal(
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setPendingListPlayer(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 flex-1">{pendingListPlayer.name}</h3>
+              <button
+                onClick={() => setPendingListPlayer(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-gray-400">
+                {pendingListPlayer.position} · £{pendingListPlayer.price.toFixed(1)}m
+              </p>
+              {calculatedGwCount !== null && calculatedGwCount > 0 && (
+                <button
+                  onClick={() => { setHistoryPlayer(pendingListPlayer.name); setPendingListPlayer(null); }}
+                  className="w-full py-2.5 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  View history
+                </button>
+              )}
+              {!deadlineLocked && (
+                <button
+                  onClick={() => {
+                    setPendingPlayer(pendingListPlayer);
+                    setPendingListPlayer(null);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="w-full py-2.5 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+                >
+                  Add to team
+                </button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Player history modal */}
       {historyPlayer !== null && createPortal(
         <div

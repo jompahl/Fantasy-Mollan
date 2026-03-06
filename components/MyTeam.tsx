@@ -31,6 +31,7 @@ export default function MyTeam({ userEmail }: Props) {
   const [upcomingGwNumber, setUpcomingGwNumber] = useState<number | null>(null);
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  const [chipInfoModal, setChipInfoModal] = useState(false);
   const { isLocked, deadlineAt } = useGameweekDeadlineLock();
 
   useEffect(() => {
@@ -204,7 +205,20 @@ export default function MyTeam({ userEmail }: Props) {
 
       {/* Chips */}
       <div className="w-full md:w-96 mt-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Chips</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Chips</p>
+          <button
+            onClick={() => setChipInfoModal(true)}
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+            aria-label="Chip rules"
+          >
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
         <button
           onClick={toggleTripleCaptain}
           disabled={isLocked || tripleCaptainGw !== null || captainSlotIndex === null}
@@ -283,6 +297,47 @@ export default function MyTeam({ userEmail }: Props) {
         </button>
       </div>
 
+      {chipInfoModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setChipInfoModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">Chips</h3>
+              <button
+                onClick={() => setChipInfoModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4 text-sm text-gray-600">
+              <p>Chips can be played once a season, you can only play one chip in a gameweek.</p>
+              <div>
+                <p className="font-semibold text-gray-800 mb-1">Triple Captain</p>
+                <p>Your captain earns <strong>3× points</strong> instead of the usual 2× for one gameweek.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-800 mb-1">Defensive Boost</p>
+                <p>Your two <strong>defenders</strong> each earn <strong>2× points</strong> for one gameweek.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-800 mb-1">Midfield Boost</p>
+                <p>Your two <strong>midfielders</strong> each earn <strong>2× points</strong> for one gameweek.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-800 mb-1">Attack Boost</p>
+                <p>Your <strong>forward</strong> earns <strong>2× points</strong> for one gameweek.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedSlotIndex !== null && slotPlayers[selectedSlotIndex] && (
         <div
           className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
@@ -294,7 +349,7 @@ export default function MyTeam({ userEmail }: Props) {
           >
             <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
               <h3 className="text-base font-semibold text-gray-900">
-                {slotPlayers[selectedSlotIndex]!.name} — History
+                {slotPlayers[selectedSlotIndex]!.name}{upcomingGwNumber !== null ? " — History" : ""}
               </h3>
               <button
                 onClick={() => setSelectedSlotIndex(null)}
@@ -303,14 +358,16 @@ export default function MyTeam({ userEmail }: Props) {
                 ×
               </button>
             </div>
-            <div className="px-5 py-4">
-              <PlayerHistory
-                playerName={slotPlayers[selectedSlotIndex]!.name}
-                gameweeks={gameweeks}
-              />
-            </div>
+            {upcomingGwNumber !== null && (
+              <div className="px-5 py-4">
+                <PlayerHistory
+                  playerName={slotPlayers[selectedSlotIndex]!.name}
+                  gameweeks={gameweeks}
+                />
+              </div>
+            )}
             {!isLocked && (
-              <div className="px-5 pb-4 pt-2 flex-shrink-0">
+              <div className="px-5 pb-4 pt-4 flex-shrink-0">
                 <button
                   onClick={async () => {
                     await selectCaptain(selectedSlotIndex);
