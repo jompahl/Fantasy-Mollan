@@ -246,6 +246,11 @@ export default function Stats() {
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
+                      <button onClick={() => toggleSort("points")} className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Points{sortArrow("points")}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
                       <button onClick={() => toggleSort("gamesPlayed")} className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Games{sortArrow("gamesPlayed")}
                       </button>
@@ -281,11 +286,6 @@ export default function Stats() {
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button onClick={() => toggleSort("points")} className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Points{sortArrow("points")}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
                       <button onClick={() => toggleSort("goalsPer90")} className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Goals/90{sortArrow("goalsPer90")}
                       </button>
@@ -304,6 +304,7 @@ export default function Stats() {
                     return (
                       <tr key={p.name} className="border-b border-gray-100">
                         <td className="px-3 py-2 text-sm text-gray-900 sticky left-0 bg-white">{p.name}</td>
+                        <td className="px-3 py-2 text-sm font-semibold text-gray-900 text-right">{p.points}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.gamesPlayed}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.minutes}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.goals}</td>
@@ -311,7 +312,6 @@ export default function Stats() {
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.yellowCards}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.redCards}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.goalsConceded}</td>
-                        <td className="px-3 py-2 text-sm font-semibold text-gray-900 text-right">{p.points}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{goalsPer90.toFixed(2)}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{assistsPer90.toFixed(2)}</td>
                       </tr>

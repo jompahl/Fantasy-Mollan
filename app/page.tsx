@@ -21,6 +21,20 @@ const ADMIN_EMAIL = "johndahlberg14@gmail.com";
 const ALL_TABS = ["My Team", "Points", "Transfers", "League", "Games", "Stats", "Help", "GW admin"] as const;
 type Tab = (typeof ALL_TABS)[number];
 
+const TAB_HASH: Record<Tab, string> = {
+  "My Team":    "my-team",
+  "Points":     "points",
+  "Transfers":  "transfers",
+  "League":     "league",
+  "Games":      "games",
+  "Stats":      "stats",
+  "Help":       "help",
+  "GW admin":   "gw-admin",
+};
+const HASH_TAB: Record<string, Tab> = Object.fromEntries(
+  Object.entries(TAB_HASH).map(([tab, hash]) => [hash, tab as Tab])
+);
+
 export default function Home() {
   const { data: session, status } = useSession();
   const [activeTab, setActiveTab] = useState<Tab>("My Team");
@@ -37,9 +51,32 @@ export default function Home() {
     ? [...ALL_TABS]
     : ALL_TABS.filter((tab) => tab !== "GW admin");
 
+  function navigateTo(tab: Tab) {
+    window.history.pushState(null, "", `#${TAB_HASH[tab]}`);
+    setActiveTab(tab);
+  }
+
+  // Set initial tab from URL hash on first load
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    const tab = HASH_TAB[hash];
+    if (tab) setActiveTab(tab);
+  }, []);
+
+  // Handle browser back / forward
+  useEffect(() => {
+    function onPopState() {
+      const hash = window.location.hash.slice(1);
+      const tab = HASH_TAB[hash] ?? "My Team";
+      setActiveTab(tab);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   useEffect(() => {
     if (!isAdmin && activeTab === "GW admin") {
-      setActiveTab("My Team");
+      navigateTo("My Team");
     }
   }, [isAdmin, activeTab]);
 
@@ -76,14 +113,18 @@ export default function Home() {
     }
 
     if (teamName === "") {
-      return <TeamNameSetup onSubmit={(name) => { saveTeamName(name); setActiveTab("Transfers"); }} />;
+      return <TeamNameSetup onSubmit={(name) => { saveTeamName(name); navigateTo("Transfers"); }} />;
     }
 
     return (
       <div className="min-h-screen bg-white flex flex-col">
         <nav className="border-b border-gray-200 px-6 flex items-center h-16 gap-4">
           {/* Logo */}
-          <div className="w-10 h-10 relative flex-shrink-0">
+          <button
+            onClick={() => navigateTo("My Team")}
+            className="w-10 h-10 relative flex-shrink-0 hover:opacity-75 transition-opacity"
+            aria-label="Go to My Team"
+          >
             <Image
               src="/fc-mollan-logo.svg"
               alt="FC Möllan"
@@ -91,14 +132,14 @@ export default function Home() {
               className="object-contain"
               priority
             />
-          </div>
+          </button>
 
           {/* Tabs — desktop */}
           <div className="hidden md:flex items-center gap-1">
             {visibleTabs.map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => navigateTo(tab)}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                   activeTab === tab
                     ? "bg-gray-100 text-gray-900"
@@ -157,7 +198,7 @@ export default function Home() {
             {visibleTabs.map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); setMenuOpen(false); }}
+                onClick={() => { navigateTo(tab); setMenuOpen(false); }}
                 className={`block w-full text-left px-4 py-3 text-sm font-medium rounded-md transition-colors ${
                   activeTab === tab
                     ? "bg-gray-100/80 text-gray-900"
@@ -214,7 +255,7 @@ export default function Home() {
               <Points userEmail={userEmail} onTotalPointsChange={setPointsTotalPoints} />
             </>
           )}
-          {activeTab === "Transfers" && <Transfers userEmail={userEmail} onFirstSave={() => setActiveTab("My Team")} />}
+          {activeTab === "Transfers" && <Transfers userEmail={userEmail} onFirstSave={() => navigateTo("My Team")} />}
           {activeTab === "League" && <League />}
           {activeTab === "Games" && <Games />}
           {activeTab === "Stats" && <Stats />}
