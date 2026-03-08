@@ -256,7 +256,7 @@ export default function Home() {
             </>
           )}
           {activeTab === "Transfers" && <Transfers userEmail={userEmail} onFirstSave={() => navigateTo("My Team")} />}
-          {activeTab === "League" && <League />}
+          {activeTab === "League" && <League userEmail={userEmail} />}
           {activeTab === "Games" && <Games />}
           {activeTab === "Stats" && <Stats />}
           {activeTab === "Help" && <Help />}

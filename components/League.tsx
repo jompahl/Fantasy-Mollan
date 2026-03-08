@@ -29,7 +29,7 @@ function TeamEmblem({ emblem }: { emblem: string | null }) {
   return <img src="/fc-mollan-logo.svg" alt="" className="w-6 h-6 object-contain" />;
 }
 
-export default function League() {
+export default function League({ userEmail }: { userEmail: string | null }) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [bestGameweeks, setBestGameweeks] = useState<BestGw[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -158,65 +158,75 @@ export default function League() {
   return (
     <div className="w-full max-w-md md:mx-auto">
       <h2 className="text-xl font-semibold text-gray-900 mb-3">Total points</h2>
+      <div className="-mx-6 md:mx-0">
       <table className="w-full">
         <thead>
           <tr className="border-b border-gray-200">
-            <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
+            <th className="pl-6 md:pl-0 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
             <th className="pb-2 w-8" />
             <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Team</th>
             <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">GW</th>
-            <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Total</th>
+            <th className="pr-6 md:pr-0 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Total</th>
           </tr>
         </thead>
         <tbody>
-          {standings.map((entry, i) => (
-            <tr
-              key={entry.teamName}
-              onClick={() => setSelected(entry)}
-              className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${i === 0 ? "font-semibold" : ""}`}
-            >
-              <td className="py-3 text-sm text-gray-400">{i + 1}</td>
-              <td className="py-2"><TeamEmblem emblem={entry.emblem} /></td>
-              <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>
-              <td className="py-3 text-sm text-gray-400 text-right">{entry.latestGwPoints ?? "—"}</td>
-              <td className="py-3 text-sm text-gray-900 text-right">{entry.totalPoints}</td>
-            </tr>
-          ))}
+          {standings.map((entry, i) => {
+            const isMe = entry.userEmail === userEmail;
+            return (
+              <tr
+                key={entry.teamName}
+                onClick={() => setSelected(entry)}
+                className={`border-b cursor-pointer transition-colors ${isMe ? "bg-blue-50 border-blue-100 hover:bg-blue-100 font-medium" : "border-gray-100 hover:bg-gray-50"} ${i === 0 ? "font-semibold" : ""}`}
+              >
+                <td className="pl-6 md:pl-0 py-3 text-sm text-gray-400">{i + 1}</td>
+                <td className="py-2"><TeamEmblem emblem={entry.emblem} /></td>
+                <td className={`py-3 text-sm ${isMe ? "text-blue-700" : "text-gray-900"}`}>{entry.teamName}</td>
+                <td className={`py-3 text-sm text-right ${isMe ? "text-blue-500" : "text-gray-400"}`}>{entry.latestGwPoints ?? "—"}</td>
+                <td className={`pr-6 md:pr-0 py-3 text-sm text-right ${isMe ? "text-blue-700" : "text-gray-900"}`}>{entry.totalPoints}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      </div>
 
       {bestGameweeks.length > 0 && (
         <div className="mt-10">
           <h2 className="text-xl font-semibold text-gray-900 mb-3">Best Gameweek</h2>
+          <div className="-mx-6 md:mx-0">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
+                <th className="pl-6 md:pl-0 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2 w-8">#</th>
                 <th className="pb-2 w-8" />
                 <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Team</th>
                 <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">GW</th>
-                <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Pts</th>
+                <th className="pr-6 md:pr-0 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pb-2">Pts</th>
               </tr>
             </thead>
             <tbody>
-              {bestGameweeks.map((entry, i) => (
-                <tr
-                  key={entry.teamName}
-                  onClick={() => {
-                    const standing = standings.find((s) => s.userEmail === entry.userEmail);
-                    if (standing) { setSelected(standing); setSelectedInitialGw(entry.gwNumber); }
-                  }}
-                  className={`border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${i === 0 ? "font-semibold" : ""}`}
-                >
-                  <td className="py-3 text-sm text-gray-400">{i + 1}</td>
-                  <td className="py-2"><TeamEmblem emblem={entry.emblem} /></td>
-                  <td className="py-3 text-sm text-gray-900">{entry.teamName}</td>
-                  <td className="py-3 text-sm text-gray-400">{entry.gwNumber}</td>
-                  <td className="py-3 text-sm text-gray-900 text-right">{entry.points}</td>
-                </tr>
-              ))}
+              {bestGameweeks.map((entry, i) => {
+                const isMe = entry.userEmail === userEmail;
+                return (
+                  <tr
+                    key={entry.teamName}
+                    onClick={() => {
+                      const standing = standings.find((s) => s.userEmail === entry.userEmail);
+                      if (standing) { setSelected(standing); setSelectedInitialGw(entry.gwNumber); }
+                    }}
+                    className={`border-b cursor-pointer transition-colors ${isMe ? "bg-blue-50 border-blue-100 hover:bg-blue-100 font-medium" : "border-gray-100 hover:bg-gray-50"} ${i === 0 ? "font-semibold" : ""}`}
+                  >
+                    <td className="pl-6 md:pl-0 py-3 text-sm text-gray-400">{i + 1}</td>
+                    <td className="py-2"><TeamEmblem emblem={entry.emblem} /></td>
+                    <td className={`py-3 text-sm ${isMe ? "text-blue-700" : "text-gray-900"}`}>{entry.teamName}</td>
+                    <td className={`py-3 text-sm ${isMe ? "text-blue-500" : "text-gray-400"}`}>{entry.gwNumber}</td>
+                    <td className={`pr-6 md:pr-0 py-3 text-sm text-right ${isMe ? "text-blue-700" : "text-gray-900"}`}>{entry.points}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
