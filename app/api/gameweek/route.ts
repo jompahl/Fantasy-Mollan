@@ -18,7 +18,6 @@ const CLEAN_SHEET_POINTS = {
   MID: 1,
 } as const;
 const PENALTY_MISS_POINTS = -2;
-const MAN_OF_THE_MATCH_POINTS = 3;
 const GOALS_CONCEDED_PENALTY_PER_2 = -1;
 const YELLOW_CARD_POINTS = -1;
 const RED_CARD_POINTS = -3;
@@ -41,7 +40,7 @@ export interface PlayerPoints {
   yellowCards: number;
   redCards: number;
   ownGoals: number;
-  manOfTheMatch: boolean;
+  bonusPoints: number;
   started: boolean;
   breakdown: PointsBreakdownItem[];
   points: number;
@@ -176,7 +175,7 @@ export async function GET() {
       const assistsColIndex = findColumnIndex(normalizedHeader, ["assists", "assist"]);
       const concededColIndex = findColumnIndex(normalizedHeader, ["goals conceded", "conceded", "goals_conceded"]);
       const penaltyMissColIndex = findColumnIndex(normalizedHeader, ["penalty miss", "penalties missed", "penalty missed", "penalty misses"]);
-      const motmColIndex = findColumnIndex(normalizedHeader, ["man of the match", "motm"]);
+      const bonusColIndex = findColumnIndex(normalizedHeader, ["bonus points", "bonus"]);
       const yellowCardsColIndex = findColumnIndex(normalizedHeader, ["yellow card", "yellow cards", "yellow"]);
       const redCardsColIndex = findColumnIndex(normalizedHeader, ["red card", "red cards", "red"]);
       const ownGoalsColIndex = findColumnIndex(normalizedHeader, ["own goal", "own goals"]);
@@ -221,7 +220,7 @@ export async function GET() {
         const yellowCards = yellowCardsColIndex >= 0 ? toNumber(cols[yellowCardsColIndex]) : 0;
         const redCards = redCardsColIndex >= 0 ? toNumber(cols[redCardsColIndex]) : 0;
         const ownGoals = ownGoalsColIndex >= 0 ? toNumber(cols[ownGoalsColIndex]) : 0;
-        const manOfTheMatch = motmColIndex >= 0 ? toBoolean(cols[motmColIndex]) : false;
+        const bonusPoints = bonusColIndex >= 0 ? toNumber(cols[bonusColIndex]) : 0;
         const started = startedColIndex >= 0 ? toBoolean(cols[startedColIndex]) : false;
 
         const sheetPosition = positionColIndex >= 0 ? cols[positionColIndex]?.trim() ?? "" : "";
@@ -301,9 +300,9 @@ export async function GET() {
           breakdown.push({ label: "Own goals", value: ownGoals, points: ownGoalPoints });
         }
 
-        if (manOfTheMatch) {
-          points += MAN_OF_THE_MATCH_POINTS;
-          breakdown.push({ label: "Man of the match", value: true, points: MAN_OF_THE_MATCH_POINTS });
+        if (bonusPoints > 0) {
+          points += bonusPoints;
+          breakdown.push({ label: "Bonus points", value: bonusPoints, points: bonusPoints });
         }
 
         players.push({
@@ -317,7 +316,7 @@ export async function GET() {
           yellowCards,
           redCards,
           ownGoals,
-          manOfTheMatch,
+          bonusPoints,
           started,
           breakdown,
           points,
