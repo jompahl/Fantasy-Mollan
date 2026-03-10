@@ -9,7 +9,7 @@ interface VoteBannerProps {
 }
 
 export default function VoteBanner({ userEmail }: VoteBannerProps) {
-  const { pollOpen, gwNumber, refresh } = useVotePoll(userEmail);
+  const { pollOpen, gwNumber, voteDeadlineAt, refresh } = useVotePoll(userEmail);
   const [modalOpen, setModalOpen] = useState(false);
 
   if (!pollOpen) return null;
@@ -17,9 +17,16 @@ export default function VoteBanner({ userEmail }: VoteBannerProps) {
   return (
     <>
       <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-center justify-between">
-        <span className="text-sm font-medium text-amber-800">
-          Vote for GW {gwNumber} best players
-        </span>
+        <div>
+          <span className="text-sm font-medium text-amber-800">
+            Vote for GW {gwNumber} best players
+          </span>
+          {voteDeadlineAt && (
+            <p className="text-xs text-amber-600 mt-0.5">
+              Deadline: {new Date(voteDeadlineAt).toLocaleString()}
+            </p>
+          )}
+        </div>
         <button
           onClick={() => setModalOpen(true)}
           className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors"
