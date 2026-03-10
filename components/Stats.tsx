@@ -16,6 +16,8 @@ interface PlayerAggregate {
   yellowCards: number;
   redCards: number;
   goalsConceded: number;
+  bonusPoints: number;
+  votePoints: number;
   points: number;
 }
 
@@ -29,6 +31,8 @@ type SortKey =
   | "yellowCards"
   | "redCards"
   | "goalsConceded"
+  | "bonusPoints"
+  | "votePoints"
   | "points"
   | "goalsPer90"
   | "assistsPer90";
@@ -61,6 +65,8 @@ function aggregatePlayers(gameweeks: Gameweek[]): PlayerAggregate[] {
           yellowCards: 0,
           redCards: 0,
           goalsConceded: 0,
+          bonusPoints: 0,
+          votePoints: 0,
           points: 0,
         });
       }
@@ -74,6 +80,8 @@ function aggregatePlayers(gameweeks: Gameweek[]): PlayerAggregate[] {
       agg.yellowCards += p.yellowCards;
       agg.redCards += p.redCards;
       agg.goalsConceded += p.goalsConceded;
+      agg.bonusPoints += p.bonusPoints;
+      agg.votePoints += p.breakdown.find((b) => b.label === "Players vote bonus")?.points ?? 0;
       agg.points += p.points;
     }
   }
@@ -162,6 +170,12 @@ export default function Stats() {
             break;
           case "goalsConceded":
             compare = a.goalsConceded - b.goalsConceded;
+            break;
+          case "bonusPoints":
+            compare = a.bonusPoints - b.bonusPoints;
+            break;
+          case "votePoints":
+            compare = a.votePoints - b.votePoints;
             break;
           case "points":
             compare = a.points - b.points;
@@ -286,6 +300,16 @@ export default function Stats() {
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
+                      <button onClick={() => toggleSort("bonusPoints")} className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Bonus{sortArrow("bonusPoints")}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button onClick={() => toggleSort("votePoints")} className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Vote pts{sortArrow("votePoints")}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
                       <button onClick={() => toggleSort("goalsPer90")} className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Goals/90{sortArrow("goalsPer90")}
                       </button>
@@ -312,6 +336,8 @@ export default function Stats() {
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.yellowCards}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.redCards}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.goalsConceded}</td>
+                        <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.bonusPoints}</td>
+                        <td className="px-3 py-2 text-sm text-gray-900 text-right">{p.votePoints}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{goalsPer90.toFixed(2)}</td>
                         <td className="px-3 py-2 text-sm text-gray-900 text-right">{assistsPer90.toFixed(2)}</td>
                       </tr>

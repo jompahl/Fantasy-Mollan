@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { Player } from "@/app/api/players/route";
@@ -67,6 +67,11 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
   const [pendingListPlayer, setPendingListPlayer] = useState<Player | null>(null);
   const [pendingPlayer, setPendingPlayer] = useState<Player | null>(null);
   const { isLocked: deadlineLocked, deadlineAt } = useGameweekDeadlineLock();
+  const [filterPos, setFilterPos] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"points" | "cost" | "form" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [modalSortBy, setModalSortBy] = useState<"points" | "cost" | "form" | null>(null);
+  const [modalSortDir, setModalSortDir] = useState<"asc" | "desc">("desc");
 
   // Load players from sheet + latest calculated gameweek from snapshots
   useEffect(() => {
@@ -276,6 +281,26 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
     onFirstSave?.();
   }
 
+  const { playerTotalPoints, playerForm } = useMemo(() => {
+    const total = new Map<string, number>();
+    const playedTotal = new Map<string, number>();
+    const playedCount = new Map<string, number>();
+    for (const gw of gameweeks) {
+      for (const p of gw.players) {
+        total.set(p.name, (total.get(p.name) ?? 0) + p.points);
+        if (p.minutes > 0) {
+          playedTotal.set(p.name, (playedTotal.get(p.name) ?? 0) + p.points);
+          playedCount.set(p.name, (playedCount.get(p.name) ?? 0) + 1);
+        }
+      }
+    }
+    const form = new Map<string, number>();
+    for (const [name, count] of playedCount) {
+      form.set(name, (playedTotal.get(name) ?? 0) / count);
+    }
+    return { playerTotalPoints: total, playerForm: form };
+  }, [gameweeks]);
+
   if (error) {
     return <p className="text-red-500 text-sm">Could not load players. Try refreshing.</p>;
   }
@@ -291,13 +316,44 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
       }, [])
     : [];
 
+  function sortPlayers(list: Player[]) {
+    if (!sortBy) return list;
+    return [...list].sort((a, b) => {
+      const aVal = sortBy === "points" ? (playerTotalPoints.get(a.name) ?? 0) : sortBy === "form" ? (playerForm.get(a.name) ?? 0) : a.price;
+      const bVal = sortBy === "points" ? (playerTotalPoints.get(b.name) ?? 0) : sortBy === "form" ? (playerForm.get(b.name) ?? 0) : b.price;
+      return sortDir === "desc" ? bVal - aVal : aVal - bVal;
+    });
+  }
+
+  function handleSort(key: "points" | "cost" | "form") {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortBy(key);
+      setSortDir("desc");
+    }
+  }
+
+  function handleModalSort(key: "points" | "cost" | "form") {
+    if (modalSortBy === key) {
+      setModalSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setModalSortBy(key);
+      setModalSortDir("desc");
+    }
+  }
+
+
+  const slotPlayerNames = new Set(slotPlayers.map((p) => p?.name).filter(Boolean) as string[]);
+
   const groups = POSITION_ORDER
     .map((pos) => ({
       pos,
       label: POSITION_LABELS[pos],
-      players: players.filter((p) => fantasyPosition(p.position) === pos),
+      players: sortPlayers(players.filter((p) => fantasyPosition(p.position) === pos)),
     }))
-    .filter((g) => g.players.length > 0);
+    .filter((g) => g.players.length > 0)
+    .filter((g) => !filterPos || g.pos === filterPos);
 
   const eligiblePlayers = activeSlot !== null
     ? players.filter((p) => {
@@ -305,6 +361,15 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
         return !slotPlayers.some((sp, i) => i !== activeSlot && sp?.name === p.name);
       })
     : [];
+  const sortedEligiblePlayers = (() => {
+    if (!modalSortBy) return eligiblePlayers;
+    return [...eligiblePlayers].sort((a, b) => {
+      const aVal = modalSortBy === "points" ? (playerTotalPoints.get(a.name) ?? 0) : modalSortBy === "form" ? (playerForm.get(a.name) ?? 0) : a.price;
+      const bVal = modalSortBy === "points" ? (playerTotalPoints.get(b.name) ?? 0) : modalSortBy === "form" ? (playerForm.get(b.name) ?? 0) : b.price;
+      return modalSortDir === "desc" ? bVal - aVal : aVal - bVal;
+    });
+  })();
+
   const playerByName = new Map(players.map((p) => [p.name, p]));
   const activeSlotPlayer = activeSlot !== null ? slotPlayers[activeSlot] : null;
   const activePlayerMeta = activeSlotPlayer ? playerByName.get(activeSlotPlayer.name) : null;
@@ -403,18 +468,67 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
 
         {/* Player list */}
         <div className="w-full md:w-96 mt-8">
+          {/* Filter / sort bar */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {/* Position filter */}
+            <div className="flex gap-1">
+              {([null, ...POSITION_ORDER.filter((p) => p !== "GK")] as (string | null)[]).map((pos) => (
+                <button
+                  key={pos ?? "all"}
+                  onClick={() => setFilterPos(pos)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                    filterPos === pos
+                      ? "bg-gray-900 text-white"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  {pos ?? "All"}
+                </button>
+              ))}
+            </div>
+            {/* Sort buttons */}
+            <div className="flex gap-1 ml-auto">
+              {(["points", "form", "cost"] as const).map((key) => (
+                <button
+                  key={key}
+                  onClick={() => handleSort(key)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                    sortBy === key
+                      ? "bg-gray-900 text-white"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  {key === "points" ? "Pts" : key === "form" ? "Form" : "Price"}{sortBy === key ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {groups.map(({ pos, label, players: group }) => (
             <div key={pos} className="mb-6">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                {label}
-              </h3>
+              {!filterPos && (
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                  {label}
+                </h3>
+              )}
               <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="pb-1" />
+                    <th className="pb-1" />
+                    <th className="pb-1 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pr-3">Pts</th>
+                    <th className="pb-1 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pr-3">Form</th>
+                    <th className="pb-1 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Price</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {group.map((player) => (
+                  {group.map((player) => {
+                    const isInTeam = slotPlayerNames.has(player.name);
+                    return (
                     <tr
                       key={player.name}
-                      className="border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => setPendingListPlayer(player)}
+                      className={`border-b border-gray-100 transition-colors ${isInTeam ? "opacity-40 cursor-not-allowed bg-gray-50" : "cursor-pointer hover:bg-gray-50"}`}
+                      onClick={() => !isInTeam && setPendingListPlayer(player)}
                     >
                       <td className="py-2 pr-2">
                         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
@@ -422,9 +536,11 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
                         </span>
                       </td>
                       <td className="py-2 pr-4 text-gray-900 text-sm">{player.name}</td>
-                      <td className="py-2 text-sm text-gray-400 whitespace-nowrap">£{player.price.toFixed(1)}m</td>
+                      <td className="py-2 pr-3 text-sm text-gray-500 text-right whitespace-nowrap">{playerTotalPoints.get(player.name) ?? 0} pts</td>
+                      <td className="py-2 pr-3 text-sm text-gray-400 text-right whitespace-nowrap">{playerForm.has(player.name) ? playerForm.get(player.name)!.toFixed(1) : "—"}</td>
+                      <td className="py-2 text-sm text-gray-400 whitespace-nowrap text-right">£{player.price.toFixed(1)}m</td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>
@@ -439,7 +555,7 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
           onClick={closeModal}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
+            className={`bg-white rounded-2xl w-full shadow-xl flex flex-col ${selecting ? "max-w-lg h-[85vh]" : "max-w-sm"} overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
@@ -468,26 +584,56 @@ export default function Transfers({ userEmail, onFirstSave }: Props) {
 
             {selecting ? (
               <>
-              <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-                {eligiblePlayers.map((player) => {
-                  const isCurrent = player.name === slotPlayers[activeSlot]?.name;
-                  return (
-                    <li key={player.name}>
-                      <button
-                        disabled={isCurrent}
-                        className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-colors ${isCurrent ? "bg-gray-50 opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}`}
-                        onClick={() => selectPlayer(player)}
-                      >
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
-                          {player.position}
-                        </span>
-                        <span className="flex-1 text-gray-900 text-sm">{player.name}</span>
-                        <span className="text-sm text-gray-400 flex-shrink-0">£{player.price.toFixed(1)}m</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="flex gap-1 px-4 py-2">
+                {(["points", "form", "cost"] as const).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => handleModalSort(key)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                      modalSortBy === key
+                        ? "bg-gray-900 text-white"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                  >
+                    {key === "points" ? "Pts" : key === "form" ? "Form" : "Price"}{modalSortBy === key ? (modalSortDir === "desc" ? " ↓" : " ↑") : ""}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="pl-4 pb-1" />
+                      <th className="pb-1" />
+                      <th className="pb-1 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pr-3">Pts</th>
+                      <th className="pb-1 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider pr-3">Form</th>
+                      <th className="pb-1 pr-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedEligiblePlayers.map((player) => {
+                      const isCurrent = player.name === slotPlayers[activeSlot]?.name;
+                      return (
+                        <tr
+                          key={player.name}
+                          onClick={() => !isCurrent && selectPlayer(player)}
+                          className={`border-b border-gray-100 ${isCurrent ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-gray-50 transition-colors"}`}
+                        >
+                          <td className="py-2 pl-4 pr-2">
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${POSITION_STYLES[player.position] ?? "bg-gray-100 text-gray-600"}`}>
+                              {player.position}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4 text-gray-900 text-sm">{player.name}</td>
+                          <td className="py-2 pr-3 text-sm text-gray-500 text-right whitespace-nowrap">{playerTotalPoints.get(player.name) ?? 0} pts</td>
+                          <td className="py-2 pr-3 text-sm text-gray-400 text-right whitespace-nowrap">{playerForm.has(player.name) ? playerForm.get(player.name)!.toFixed(1) : "—"}</td>
+                          <td className="py-2 pr-4 text-sm text-gray-400 whitespace-nowrap text-right">£{player.price.toFixed(1)}m</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               </>
             ) : showHistory ? (
               <div className="px-6 py-4">

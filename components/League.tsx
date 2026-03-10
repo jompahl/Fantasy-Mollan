@@ -132,6 +132,24 @@ export default function League({ userEmail }: { userEmail: string | null }) {
     });
   }, []);
 
+  // Push a history entry when viewing a team so back button returns to the league list
+  useEffect(() => {
+    if (selected) {
+      window.history.pushState(null, "", "#league");
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    function onPopState() {
+      if (selected) {
+        setSelected(null);
+        setSelectedInitialGw(undefined);
+      }
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [selected]);
+
   if (!loaded) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
   }
