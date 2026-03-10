@@ -16,6 +16,7 @@ import Help from "@/components/Help";
 import MyTeam from "@/components/MyTeam";
 import GameweekAdministration from "@/components/GameweekAdministration";
 import Stats from "@/components/Stats";
+import VoteBanner from "@/components/VoteBanner";
 
 const ADMIN_EMAIL = "johndahlberg14@gmail.com";
 const ALL_TABS = ["My Team", "Points", "Transfers", "League", "Games", "Stats", "Help", "GW admin"] as const;
@@ -216,6 +217,8 @@ export default function Home() {
             </button>
           </div>
         </div>
+
+        <VoteBanner userEmail={userEmail} />
 
         <main className="flex-1 px-6 py-8">
           {activeTab === "My Team" && (

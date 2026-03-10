@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const SHEET_ID = "1Yn8-DvcCCHG0dkb588tGdjruPXE8h7SDi2DM-yV_ZXg";
 const GAMEWEEK_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=1520740865`;
@@ -144,12 +150,27 @@ async function fetchPlayerPositionMap(): Promise<Map<string, string>> {
   return map;
 }
 
+async function fetchVoteBonusMap(): Promise<Map<string, Map<string, number>>> {
+  const { data } = await supabase
+    .from("player_vote_bonus")
+    .select("gameweek_number, player_name, bonus_points");
+
+  const map = new Map<string, Map<string, number>>();
+  for (const row of data ?? []) {
+    const gwKey = String(row.gameweek_number);
+    if (!map.has(gwKey)) map.set(gwKey, new Map());
+    map.get(gwKey)!.set(row.player_name.toLowerCase(), row.bonus_points);
+  }
+  return map;
+}
+
 export async function GET() {
   try {
-    const [res, playerPositionMap, teamImageMap] = await Promise.all([
+    const [res, playerPositionMap, teamImageMap, voteBonusMap] = await Promise.all([
       fetch(GAMEWEEK_CSV_URL, { cache: "no-store" }),
       fetchPlayerPositionMap(),
       fetchTeamImageMap(),
+      fetchVoteBonusMap(),
     ]);
     if (!res.ok) throw new Error("Failed to fetch");
 
@@ -303,6 +324,12 @@ export async function GET() {
         if (bonusPoints > 0) {
           points += bonusPoints;
           breakdown.push({ label: "Bonus points", value: bonusPoints, points: bonusPoints });
+        }
+
+        const voteBonus = voteBonusMap.get(String(idx + 1))?.get(name.toLowerCase()) ?? 0;
+        if (voteBonus > 0) {
+          points += voteBonus;
+          breakdown.push({ label: "Players vote bonus", value: voteBonus, points: voteBonus });
         }
 
         players.push({
