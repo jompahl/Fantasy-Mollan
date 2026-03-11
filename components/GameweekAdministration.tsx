@@ -42,6 +42,12 @@ export default function GameweekAdministration() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeMessage, setFinalizeMessage] = useState<string | null>(null);
 
+  // Accordion state
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  function toggleSection(key: string) {
+    setOpenSection((prev) => (prev === key ? null : key));
+  }
+
   useEffect(() => {
     fetch("/api/gameweek")
       .then((r) => r.json())
@@ -191,22 +197,6 @@ export default function GameweekAdministration() {
     setVoteSaving(false);
   }
 
-  async function closeVoteNow() {
-    setVoteSaving(true);
-    setVoteMessage(null);
-    const now = new Date(Date.now() - 1000).toISOString();
-    const { error } = await supabase
-      .from("gameweek_deadline")
-      .upsert({ id: 1, vote_deadline_at: now }, { onConflict: "id" });
-    if (error) {
-      setVoteMessage(`Could not close poll: ${error.message}`);
-    } else {
-      setVoteDeadlineAt(now);
-      setVoteMessage("Poll closed.");
-    }
-    setVoteSaving(false);
-  }
-
   async function clearVoteDeadline() {
     setVoteSaving(true);
     setVoteMessage(null);
@@ -287,272 +277,180 @@ export default function GameweekAdministration() {
 
   return (
     <div className="w-full max-w-2xl">
-      <h2 className="text-2xl font-semibold text-gray-900 mb-2">Gameweek Administration</h2>
-      <p className="text-sm text-gray-600 mb-4">
-        Schedule deadline for the upcoming gameweek.
-      </p>
+      <h2 className="text-2xl font-semibold text-gray-900 mb-4">Gameweek Administration</h2>
 
-      <div className="rounded-xl border border-gray-200 p-4 bg-white">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              value={dateValue}
-              onChange={(e) => setDateValue(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-              Time
-            </label>
-            <input
-              type="time"
-              value={timeValue}
-              onChange={(e) => setTimeValue(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </div>
+      <div className="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-200">
+
+        {/* Gameweek deadline */}
+        <div>
+          <button
+            onClick={() => toggleSection("deadline")}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Gameweek deadline
+            <span className="text-gray-400 text-xs">{openSection === "deadline" ? "▲" : "▼"}</span>
+          </button>
+          {openSection === "deadline" && (
+            <div className="px-4 pb-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Date</label>
+                  <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Time</label>
+                  <input type="time" value={timeValue} onChange={(e) => setTimeValue(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={saveDeadline} disabled={saving} className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40">
+                  {saving ? "Saving…" : "Save deadline"}
+                </button>
+                <button onClick={unlockGameweek} disabled={saving} className="px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                  Unlock GW
+                </button>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 text-sm text-gray-700 space-y-1">
+                <p>Current deadline: <span className="font-semibold">{currentDeadlineLocal ? currentDeadlineLocal.toLocaleString() : "Not set"}</span></p>
+                <p>Transfer/Captain lock: <span className={`font-semibold ${isLocked ? "text-red-600" : "text-green-600"}`}>{isLocked ? "Locked" : "Open"}</span></p>
+                {message && <p className="text-gray-600">{message}</p>}
+              </div>
+            </div>
+          )}
         </div>
 
-        <button
-          onClick={saveDeadline}
-          disabled={saving}
-          className="mt-3 px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
-        >
-          {saving ? "Saving…" : "Save deadline"}
-        </button>
-        <button
-          onClick={unlockGameweek}
-          disabled={saving}
-          className="mt-3 ml-2 px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-        >
-          Unlock GW
-        </button>
-      </div>
-
-      <div className="mt-4 rounded-xl border border-gray-200 p-4 bg-gray-50 text-sm text-gray-700 space-y-1">
-        <p>
-          Current deadline:{" "}
-          <span className="font-semibold">
-            {currentDeadlineLocal ? currentDeadlineLocal.toLocaleString() : "Not set"}
-          </span>
-        </p>
-        <p>
-          Transfer/Captain lock:{" "}
-          <span className={`font-semibold ${isLocked ? "text-red-600" : "text-green-600"}`}>
-            {isLocked ? "Locked" : "Open"}
-          </span>
-        </p>
-        {message && <p className="text-gray-600">{message}</p>}
-      </div>
-
-      <div className="mt-6 rounded-xl border border-gray-200 p-4 bg-white">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Save Snapshots</h3>
-        <p className="text-xs text-gray-500 mb-3">
-          Snapshots all users&apos; teams for the given GW and resets any active chips. Run this once per GW after the match is played.
-        </p>
-        <p className="text-xs text-gray-500 mb-3">
-          Gameweeks calculated:{" "}
-          <span className="font-semibold text-gray-700">
-            {calculatedGwCount !== null ? calculatedGwCount : "…"}
-          </span>
-        </p>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center border border-gray-300 rounded-md overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setCalculateGwNumber((v) => String(Math.max(1, (parseInt(v, 10) || 1) - 1)))}
-              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium"
-            >
-              −
-            </button>
-            <span className="w-10 text-center text-sm font-semibold text-gray-900">
-              {calculateGwNumber || "—"}
-            </span>
-            <button
-              type="button"
-              onClick={() => setCalculateGwNumber((v) => String(Math.min(30, (parseInt(v, 10) || 0) + 1)))}
-              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium"
-            >
-              +
-            </button>
-          </div>
+        {/* Save snapshots */}
+        <div>
           <button
-            onClick={calculateGameweek}
-            disabled={calculating || !calculateGwNumber}
-            className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
+            onClick={() => toggleSection("snapshots")}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            {calculating ? "Saving…" : "Save snapshots"}
+            Save snapshots
+            <span className="text-gray-400 text-xs">{openSection === "snapshots" ? "▲" : "▼"}</span>
           </button>
+          {openSection === "snapshots" && (
+            <div className="px-4 pb-4 pt-1 space-y-3">
+              <p className="text-xs text-gray-500">Snapshots all users&apos; teams for the given GW and resets any active chips. Run this once per GW after the match is played.</p>
+              <p className="text-xs text-gray-500">Gameweeks calculated: <span className="font-semibold text-gray-700">{calculatedGwCount !== null ? calculatedGwCount : "…"}</span></p>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center border border-gray-300 rounded-md overflow-hidden">
+                  <button type="button" onClick={() => setCalculateGwNumber((v) => String(Math.max(1, (parseInt(v, 10) || 1) - 1)))} className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium">−</button>
+                  <span className="w-10 text-center text-sm font-semibold text-gray-900">{calculateGwNumber || "—"}</span>
+                  <button type="button" onClick={() => setCalculateGwNumber((v) => String(Math.min(30, (parseInt(v, 10) || 0) + 1)))} className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium">+</button>
+                </div>
+                <button onClick={calculateGameweek} disabled={calculating || !calculateGwNumber} className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40">
+                  {calculating ? "Saving…" : "Save snapshots"}
+                </button>
+              </div>
+              {calculateMessage && <p className="text-sm text-gray-600">{calculateMessage}</p>}
+            </div>
+          )}
         </div>
-        {calculateMessage && (
-          <p className="mt-2 text-sm text-gray-600">{calculateMessage}</p>
-        )}
-      </div>
 
-      <div className="mt-6 rounded-xl border border-gray-200 p-4 bg-white">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Seed Players</h3>
-        <p className="text-xs text-gray-500 mb-3">
-          One-time import of all players from the sheet into the database. Safe to re-run — existing players and their prices are never overwritten, only new players are added.
-        </p>
-        <button
-          onClick={seedPlayers}
-          disabled={seeding}
-          className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
-        >
-          {seeding ? "Seeding…" : "Seed players from sheet"}
-        </button>
-        {seedMessage && (
-          <p className="mt-2 text-sm text-gray-600">{seedMessage}</p>
-        )}
-      </div>
-
-      {/* Vote deadline section */}
-      <div className="mt-6 rounded-xl border border-amber-200 p-4 bg-white">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Vote Poll Deadline</h3>
-        <p className="text-xs text-gray-500 mb-3">
-          Set when the player vote poll closes. A banner appears for all users until the deadline passes or they vote.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              value={voteDateValue}
-              onChange={(e) => setVoteDateValue(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-              Time
-            </label>
-            <input
-              type="time"
-              value={voteTimeValue}
-              onChange={(e) => setVoteTimeValue(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
-            />
-          </div>
+        {/* Seed players */}
+        <div>
+          <button
+            onClick={() => toggleSection("seed")}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Seed players
+            <span className="text-gray-400 text-xs">{openSection === "seed" ? "▲" : "▼"}</span>
+          </button>
+          {openSection === "seed" && (
+            <div className="px-4 pb-4 pt-1 space-y-3">
+              <p className="text-xs text-gray-500">One-time import of all players from the sheet into the database. Safe to re-run — existing players and their prices are never overwritten, only new players are added.</p>
+              <button onClick={seedPlayers} disabled={seeding} className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40">
+                {seeding ? "Seeding…" : "Seed players from sheet"}
+              </button>
+              {seedMessage && <p className="text-sm text-gray-600">{seedMessage}</p>}
+            </div>
+          )}
         </div>
-        <div className="flex gap-2 mt-3">
+
+        {/* Vote poll */}
+        <div>
           <button
-            onClick={saveVoteDeadline}
-            disabled={voteSaving}
-            className="px-4 py-2 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40"
+            onClick={() => toggleSection("vote")}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            {voteSaving ? "Saving…" : "Save vote deadline"}
+            Vote poll
+            <span className="text-gray-400 text-xs">{openSection === "vote" ? "▲" : "▼"}</span>
           </button>
-          <button
-            onClick={closeVoteNow}
-            disabled={voteSaving}
-            className="px-4 py-2 rounded-full text-sm font-medium border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
-          >
-            Close poll now
-          </button>
-          <button
-            onClick={clearVoteDeadline}
-            disabled={voteSaving}
-            className="px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-          >
-            Clear deadline
-          </button>
+          {openSection === "vote" && (
+            <div className="px-4 pb-4 pt-1 space-y-4">
+              <p className="text-xs text-gray-500">Set when the player vote poll closes. A banner appears for all users until the deadline passes or they vote.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Date</label>
+                  <input type="date" value={voteDateValue} onChange={(e) => setVoteDateValue(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Time</label>
+                  <input type="time" value={voteTimeValue} onChange={(e) => setVoteTimeValue(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900" />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={saveVoteDeadline} disabled={voteSaving} className="px-4 py-2 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40">
+                  {voteSaving ? "Saving…" : "Save vote deadline"}
+                </button>
+                <button onClick={clearVoteDeadline} disabled={voteSaving} className="px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                  Clear deadline
+                </button>
+              </div>
+              <div className="rounded-lg border border-amber-100 p-3 bg-amber-50 text-sm text-gray-700 space-y-1">
+                <p>Current vote deadline: <span className="font-semibold">{voteDeadlineAt ? new Date(voteDeadlineAt).toLocaleString() : "Not set"}</span></p>
+                <p>Poll status: <span className={`font-semibold ${voteDeadlineAt && new Date(voteDeadlineAt).getTime() > Date.now() ? "text-green-600" : "text-gray-500"}`}>{voteDeadlineAt && new Date(voteDeadlineAt).getTime() > Date.now() ? "Open" : "Closed"}</span></p>
+                {voteMessage && <p className="text-gray-600">{voteMessage}</p>}
+              </div>
+
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Vote results</p>
+                <p className="text-xs text-gray-500">Weighted score: 3 pts for 1st pick, 2 pts for 2nd, 1 pt for 3rd.</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center border border-gray-300 rounded-md overflow-hidden">
+                    <button type="button" onClick={() => setVoteResultsGw((v) => String(Math.max(1, (parseInt(v, 10) || 1) - 1)))} className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium">−</button>
+                    <span className="w-10 text-center text-sm font-semibold text-gray-900">{voteResultsGw || "—"}</span>
+                    <button type="button" onClick={() => setVoteResultsGw((v) => String(Math.min(30, (parseInt(v, 10) || 0) + 1)))} className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium">+</button>
+                  </div>
+                  <button onClick={loadVoteResults} disabled={voteResultsLoading || !voteResultsGw} className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40">
+                    {voteResultsLoading ? "Loading…" : "Load results"}
+                  </button>
+                  <button onClick={finalizeVotes} disabled={finalizing || !voteResultsGw} className="px-4 py-2 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40">
+                    {finalizing ? "Saving…" : "Save votes"}
+                  </button>
+                </div>
+                {finalizeMessage && <p className="text-sm text-gray-600">{finalizeMessage}</p>}
+                {voteResults !== null && (
+                  voteResults.length === 0 ? (
+                    <p className="text-sm text-gray-400">No votes for GW {voteResultsGw}.</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                          <th className="pb-1 font-semibold">#</th>
+                          <th className="pb-1 font-semibold">Player</th>
+                          <th className="pb-1 font-semibold text-right">Score</th>
+                          <th className="pb-1 font-semibold text-right">Votes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {voteResults.map((r, i) => (
+                          <tr key={r.player} className="border-b border-gray-50">
+                            <td className="py-1.5 text-gray-400 w-6">{i + 1}</td>
+                            <td className="py-1.5 font-medium text-gray-900">{r.player}</td>
+                            <td className="py-1.5 text-right font-semibold text-gray-800">{r.score}</td>
+                            <td className="py-1.5 text-right text-gray-500">{r.votes}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
 
-      <div className="mt-4 rounded-xl border border-amber-100 p-4 bg-amber-50 text-sm text-gray-700 space-y-1">
-        <p>
-          Current vote deadline:{" "}
-          <span className="font-semibold">
-            {voteDeadlineAt ? new Date(voteDeadlineAt).toLocaleString() : "Not set"}
-          </span>
-        </p>
-        <p>
-          Poll status:{" "}
-          <span className={`font-semibold ${voteDeadlineAt && new Date(voteDeadlineAt).getTime() > Date.now() ? "text-green-600" : "text-gray-500"}`}>
-            {voteDeadlineAt && new Date(voteDeadlineAt).getTime() > Date.now() ? "Open" : "Closed"}
-          </span>
-        </p>
-        {voteMessage && <p className="text-gray-600">{voteMessage}</p>}
-      </div>
-
-      {/* Vote results section */}
-      <div className="mt-6 rounded-xl border border-gray-200 p-4 bg-white">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Vote Results</h3>
-        <p className="text-xs text-gray-500 mb-3">
-          Weighted score: 3 pts for 1st pick, 2 pts for 2nd, 1 pt for 3rd.
-        </p>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex items-center border border-gray-300 rounded-md overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setVoteResultsGw((v) => String(Math.max(1, (parseInt(v, 10) || 1) - 1)))}
-              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium"
-            >
-              −
-            </button>
-            <span className="w-10 text-center text-sm font-semibold text-gray-900">
-              {voteResultsGw || "—"}
-            </span>
-            <button
-              type="button"
-              onClick={() => setVoteResultsGw((v) => String(Math.min(30, (parseInt(v, 10) || 0) + 1)))}
-              className="px-3 py-2 text-gray-600 hover:bg-gray-100 text-sm font-medium"
-            >
-              +
-            </button>
-          </div>
-          <button
-            onClick={loadVoteResults}
-            disabled={voteResultsLoading || !voteResultsGw}
-            className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
-          >
-            {voteResultsLoading ? "Loading…" : "Load results"}
-          </button>
-          <button
-            onClick={finalizeVotes}
-            disabled={finalizing || !voteResultsGw}
-            className="px-4 py-2 rounded-full text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40"
-          >
-            {finalizing ? "Finalizing…" : "Finalize vote bonuses"}
-          </button>
-        </div>
-        {finalizeMessage && (
-          <p className="mt-2 text-sm text-gray-600">{finalizeMessage}</p>
-        )}
-
-        {voteResults !== null && (
-          voteResults.length === 0 ? (
-            <p className="text-sm text-gray-400">No votes for GW {voteResultsGw}.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
-                  <th className="pb-1 font-semibold">#</th>
-                  <th className="pb-1 font-semibold">Player</th>
-                  <th className="pb-1 font-semibold text-right">Score</th>
-                  <th className="pb-1 font-semibold text-right">Votes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {voteResults.map((r, i) => (
-                  <tr key={r.player} className="border-b border-gray-50">
-                    <td className="py-1.5 text-gray-400 w-6">{i + 1}</td>
-                    <td className="py-1.5 font-medium text-gray-900">{r.player}</td>
-                    <td className="py-1.5 text-right font-semibold text-gray-800">{r.score}</td>
-                    <td className="py-1.5 text-right text-gray-500">{r.votes}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-        )}
       </div>
     </div>
   );
