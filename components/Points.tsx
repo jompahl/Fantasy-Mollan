@@ -96,11 +96,13 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
           if (!map.has(row.gameweek_number)) {
             map.set(row.gameweek_number, Array(5).fill(null));
           }
-          map.get(row.gameweek_number)![row.slot_index] = {
-            name: row.player_name,
-            position: row.player_position,
-            price: row.player_price,
-          };
+          if (row.player_name !== "NO_PLAYER_SELECTED") {
+            map.get(row.gameweek_number)![row.slot_index] = {
+              name: row.player_name,
+              position: row.player_position,
+              price: row.player_price,
+            };
+          }
           if (row.is_captain === "CAPTAIN" || row.is_captain === "TRIPLE_CAPTAIN") {
             captainMap.set(row.gameweek_number, row.player_name);
           }
@@ -383,7 +385,7 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
         </div>
       )}
       <Pitch
-        onSlotClick={(i) => { setSelectedSlotIndex(i); setShowHistory(false); }}
+        onSlotClick={(i) => { if (!slotPlayers[i]) return; setSelectedSlotIndex(i); setShowHistory(false); }}
         slotPlayers={slotPlayers.map((p) => p?.name ?? null)}
         slotPoints={slotPoints}
         slotGoals={slotGoals}
@@ -393,6 +395,7 @@ export default function Points({ userEmail, onTotalPointsChange, initialGameweek
         slotCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw : false))}
         slotTripleCaptains={slotPlayers.map((p) => (p?.name ? p.name === captainForCurrentGw && tcActiveForCurrentGw : false))}
         slotBoosts={slotPlayers.map((_, i) => !!boostChipForCurrentGw && SLOTS[i]?.label === boostChipForCurrentGw.replace("_BOOST", ""))}
+        showEmptyPointsDash
       />
 
       {/* GW points summary bar */}

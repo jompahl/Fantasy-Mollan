@@ -40,6 +40,7 @@ interface Props {
   slotBoosts?: (boolean | null)[];
   highlightEmpty?: boolean;
   highlightSlots?: number[];
+  showEmptyPointsDash?: boolean;
 }
 
 export default function Pitch({
@@ -56,6 +57,7 @@ export default function Pitch({
   slotBoosts = [],
   highlightEmpty = false,
   highlightSlots = [],
+  showEmptyPointsDash = false,
 }: Props) {
   return (
     <div>
@@ -138,6 +140,9 @@ export default function Pitch({
                 </span>
                 {filled && points !== null && (
                   <span className="text-yellow-300 text-xs font-bold block text-center">{points} pts</span>
+                )}
+                {!filled && showEmptyPointsDash && (
+                  <span className="text-white/40 text-xs font-bold block text-center">—</span>
                 )}
                 {filled && price !== null && (
                   <span className="text-white/70 text-xs block text-center">£{price.toFixed(1)}m</span>
