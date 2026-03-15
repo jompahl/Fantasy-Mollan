@@ -35,6 +35,13 @@ export default function GameweekAdministration() {
   const [voteDeadlineAt, setVoteDeadlineAt] = useState<string | null>(null);
   const [voteMessage, setVoteMessage] = useState<string | null>(null);
 
+  // Reset password state
+  const [credUsers, setCredUsers] = useState<string[] | null>(null);
+  const [resetUsername, setResetUsername] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+
   // Vote results state
   const [voteResultsGw, setVoteResultsGw] = useState("");
   const [voteResults, setVoteResults] = useState<VoteResult[] | null>(null);
@@ -271,6 +278,31 @@ export default function GameweekAdministration() {
     setVoteResultsLoading(false);
   }
 
+  async function loadCredUsers() {
+    if (credUsers !== null) return;
+    const { data } = await supabase.from("credentials_users").select("username").order("username");
+    setCredUsers((data ?? []).map((r: { username: string }) => r.username));
+  }
+
+  async function submitResetPassword() {
+    if (!resetUsername || !resetPassword) return;
+    setResetting(true);
+    setResetMessage(null);
+    const res = await fetch("/api/admin/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: resetUsername, newPassword: resetPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setResetMessage(`Error: ${data.error}`);
+    } else {
+      setResetMessage(`Password updated for ${resetUsername}.`);
+      setResetPassword("");
+    }
+    setResetting(false);
+  }
+
   if (!loaded) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
   }
@@ -447,6 +479,53 @@ export default function GameweekAdministration() {
                   )
                 )}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Reset password */}
+        <div>
+          <button
+            onClick={() => { toggleSection("resetpw"); loadCredUsers(); }}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Reset user password
+            <span className="text-gray-400 text-xs">{openSection === "resetpw" ? "▲" : "▼"}</span>
+          </button>
+          {openSection === "resetpw" && (
+            <div className="px-4 pb-4 pt-1 space-y-3">
+              <p className="text-xs text-gray-500">Reset the password for a credentials-based user (non-Google login).</p>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">User</label>
+                <select
+                  value={resetUsername}
+                  onChange={(e) => { setResetUsername(e.target.value); setResetMessage(null); }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                >
+                  <option value="">— Select user —</option>
+                  {(credUsers ?? []).map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">New password</label>
+                <input
+                  type="text"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  placeholder="Min. 6 characters"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+              <button
+                onClick={submitResetPassword}
+                disabled={resetting || !resetUsername || resetPassword.length < 6}
+                className="px-4 py-2 rounded-full text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
+              >
+                {resetting ? "Saving…" : "Reset password"}
+              </button>
+              {resetMessage && <p className="text-sm text-gray-600">{resetMessage}</p>}
             </div>
           )}
         </div>

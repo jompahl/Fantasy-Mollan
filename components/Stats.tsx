@@ -89,6 +89,39 @@ function aggregatePlayers(gameweeks: Gameweek[]): PlayerAggregate[] {
   return Array.from(map.values());
 }
 
+interface VoteEntry {
+  gameweek_number: number;
+  user_email: string;
+  player_1: string;
+  player_2: string;
+  player_3: string;
+}
+
+interface PlayerVoteTally {
+  name: string;
+  score: number;
+  voters: { email: string; rank: 1 | 2 | 3 }[];
+}
+
+function tallyVotes(votes: VoteEntry[]): PlayerVoteTally[] {
+  const map = new Map<string, PlayerVoteTally>();
+  const weights = [3, 2, 1] as const;
+
+  for (const vote of votes) {
+    ([vote.player_1, vote.player_2, vote.player_3] as string[]).forEach((player, i) => {
+      if (!player) return;
+      if (!map.has(player)) {
+        map.set(player, { name: player, score: 0, voters: [] });
+      }
+      const t = map.get(player)!;
+      t.score += weights[i];
+      t.voters.push({ email: vote.user_email, rank: (i + 1) as 1 | 2 | 3 });
+    });
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.score - a.score);
+}
+
 export default function Stats() {
   const [gameweeks, setGameweeks] = useState<Gameweek[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -96,6 +129,11 @@ export default function Stats() {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [showVotePoll, setShowVotePoll] = useState(false);
+  const [voteData, setVoteData] = useState<VoteEntry[] | null>(null);
+  const [voteGw, setVoteGw] = useState<number | null>(null);
+  const [teamNames, setTeamNames] = useState<Record<string, string>>({});
+  const [expandedVoters, setExpandedVoters] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     Promise.all([
@@ -193,6 +231,30 @@ export default function Stats() {
       });
   }, [aggregates, sortDirection, sortKey]);
 
+  async function openVotePoll() {
+    if (voteData === null) {
+      const [{ data: votes }, { data: teams }] = await Promise.all([
+        supabase
+          .from("gw_votes")
+          .select("gameweek_number, user_email, player_1, player_2, player_3")
+          .order("gameweek_number", { ascending: false }),
+        supabase.from("user_teams").select("user_email, team_name"),
+      ]);
+      const rows = (votes ?? []) as VoteEntry[];
+      setVoteData(rows);
+      const nameMap: Record<string, string> = {};
+      for (const t of teams ?? []) {
+        if (t.user_email && t.team_name) nameMap[t.user_email] = t.team_name;
+      }
+      setTeamNames(nameMap);
+      if (rows.length > 0 && voteGw === null) {
+        const latestGw = Math.max(...rows.map((r) => r.gameweek_number));
+        setVoteGw(latestGw);
+      }
+    }
+    setShowVotePoll(true);
+  }
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
@@ -220,12 +282,20 @@ export default function Stats() {
           slotPoints={dreamTeam.map((p) => p?.points ?? null)}
           onSlotClick={(i) => { const p = dreamTeam[i]; if (p) setSelectedPlayer(p.name); }}
         />
-        <button
-          onClick={() => setShowDetails(true)}
-          className="mt-4 px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
-        >
-          Open detailed stats view
-        </button>
+        <div className="mt-4 flex flex-col items-start gap-2">
+          <button
+            onClick={() => setShowDetails(true)}
+            className="px-4 py-2 rounded-full text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            Open detailed stats view
+          </button>
+          <button
+            onClick={openVotePoll}
+            className="px-4 py-2 rounded-full text-sm font-medium border border-amber-300 text-amber-700 hover:bg-amber-50"
+          >
+            Vote poll results
+          </button>
+        </div>
       </div>
 
       {showDetails && (
@@ -349,6 +419,120 @@ export default function Stats() {
           </div>
         </div>
       )}
+
+      {showVotePoll && (() => {
+        const gwNumbers = voteData
+          ? Array.from(new Set(voteData.map((r) => r.gameweek_number))).sort((a, b) => b - a)
+          : [];
+        const currentGw = voteGw ?? gwNumbers[0] ?? null;
+        const gwVotes = (voteData ?? []).filter((r) => r.gameweek_number === currentGw);
+        const tally = tallyVotes(gwVotes);
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center"
+            onClick={() => setShowVotePoll(false)}
+          >
+            <div
+              className="w-full max-w-sm bg-white rounded-2xl shadow-xl flex flex-col max-h-[85vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 className="text-base font-semibold text-gray-900">Vote poll results</h3>
+                <button
+                  onClick={() => setShowVotePoll(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              {gwNumbers.length === 0 ? (
+                <p className="px-5 py-8 text-sm text-gray-500">No votes have been recorded yet.</p>
+              ) : (
+                <>
+                  {gwNumbers.length > 1 && (
+                    <div className="px-5 pt-3 pb-1 flex gap-2 flex-wrap">
+                      {gwNumbers.map((gw) => (
+                        <button
+                          key={gw}
+                          onClick={() => { setVoteGw(gw); setExpandedVoters(new Set()); }}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                            currentGw === gw
+                              ? "bg-amber-500 border-amber-500 text-white"
+                              : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          GW {gw}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="px-5 pt-3 pb-1 flex-shrink-0">
+                    <p className="text-xs text-gray-400">{gwVotes.length} vote{gwVotes.length !== 1 ? "s" : ""} cast</p>
+                  </div>
+
+                  <div className="overflow-y-auto px-5 pb-5">
+                    {tally.length === 0 ? (
+                      <p className="text-sm text-gray-500 py-4">No votes for GW {currentGw}.</p>
+                    ) : (
+                      <ol className="space-y-2 mt-2">
+                        {tally.map((player, idx) => {
+                          const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
+                          const isOpen = expandedVoters.has(player.name);
+                          return (
+                            <li key={player.name} className="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                              <button
+                                className="w-full flex items-center justify-between px-4 py-3 text-left"
+                                onClick={() => setExpandedVoters((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(player.name)) next.delete(player.name);
+                                  else next.add(player.name);
+                                  return next;
+                                })}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="w-5 text-center text-sm">
+                                    {medal ?? <span className="text-xs text-gray-400">{idx + 1}</span>}
+                                  </span>
+                                  <span className="text-sm font-medium text-gray-900">{player.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-amber-700">{player.score} pts</span>
+                                  <span className="text-gray-400 text-xs">{isOpen ? "▲" : "▼"}</span>
+                                </div>
+                              </button>
+                              {isOpen && (
+                                <ul className="border-t border-gray-100 divide-y divide-gray-100">
+                                  {player.voters.map((v, vi) => (
+                                    <li key={vi} className="flex items-center justify-between px-4 py-2">
+                                      <span className="text-sm text-gray-700">
+                                        {teamNames[v.email] ?? v.email.split("@")[0]}
+                                      </span>
+                                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                        v.rank === 1 ? "bg-amber-100 text-amber-700" :
+                                        v.rank === 2 ? "bg-gray-100 text-gray-600" :
+                                        "bg-orange-50 text-orange-600"
+                                      }`}>
+                                        {v.rank === 1 ? "1st" : v.rank === 2 ? "2nd" : "3rd"}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {selectedPlayer && (
         <div

@@ -11,6 +11,7 @@ const RULES = [
   "For 0 goals conceded by a midfielder = 1 point",
   "For each penalty miss = -2 points",
   "Man of the match = 3 points",
+  "Vote poll bonus: 1st place = 3 points, 2nd place = 2 points, 3rd place = 1 point — awarded after each gameweek vote poll",
   "For every 2 goals conceded by a defender = -1 point",
   "For each yellow card = -1 point",
   "For each red card = -3 points",
