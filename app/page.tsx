@@ -45,6 +45,7 @@ export default function Home() {
   const [showEmblemPicker, setShowEmblemPicker] = useState(false);
   const [teamImages, setTeamImages] = useState<TeamImage[]>([]);
   const [premierLeagueImages, setPremierLeagueImages] = useState<TeamImage[]>([]);
+  const [laLigaImages, setLaLigaImages] = useState<TeamImage[]>([]);
   const { teamName, saveTeamName } = useTeamName(session?.user?.email);
   const userEmail = session?.user?.email ?? null;
   const isAdmin = userEmail === ADMIN_EMAIL;
@@ -94,9 +95,10 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/teams")
       .then((r) => r.json())
-      .then((data: { teams?: TeamImage[]; premierLeague?: TeamImage[] }) => {
+      .then((data: { teams?: TeamImage[]; premierLeague?: TeamImage[]; laLiga?: TeamImage[] }) => {
         setTeamImages(data.teams ?? []);
         setPremierLeagueImages(data.premierLeague ?? []);
+        setLaLigaImages(data.laLiga ?? []);
       });
   }, []);
 
@@ -271,6 +273,7 @@ export default function Home() {
             current={emblemUrl}
             teamImages={[{ name: "FC Möllan", imageUrl: "/fc-mollan-logo.svg" }, ...teamImages]}
             premierLeagueImages={premierLeagueImages}
+            laLigaImages={laLigaImages}
             onSelect={(value) => {
               if (userEmail) {
                 setEmblemUrl(value);

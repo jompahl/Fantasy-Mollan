@@ -17,7 +17,15 @@ export interface TeamImage {
   imageUrl: string;
 }
 
-async function fetchImages(url: string): Promise<TeamImage[]> {
+export interface ImageTable {
+  label: string;
+  images: TeamImage[];
+}
+
+// Fetches all labelled image tables from a CSV.
+// Each table is preceded by a label row (e.g. "Premier League") then a header
+// row containing an "image" column (and optionally a "name"/"team"/"club" column).
+async function fetchAllImageTables(url: string): Promise<ImageTable[]> {
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return [];
@@ -26,42 +34,67 @@ async function fetchImages(url: string): Promise<TeamImage[]> {
     const lines = text.split("\n").filter((l) => l.trim());
     if (lines.length === 0) return [];
 
-    // Scan for the header row — it's whichever row contains an "image" column
-    let headerIdx = -1;
+    const tables: ImageTable[] = [];
+    let currentLabel = "";
     let nameCol = -1;
     let imageCol = -1;
-    for (let i = 0; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
-      const nc = findColumnIndex(cols, ["team", "name", "club"]);
-      const ic = findColumnIndex(cols, ["image"]);
+    let inTable = false;
+    let current: TeamImage[] = [];
+
+    for (const line of lines) {
+      const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const lower = cols.map((c) => c.toLowerCase());
+
+      // Header row — contains the word "image"
+      const ic = findColumnIndex(lower, ["image"]);
       if (ic !== -1) {
-        headerIdx = i;
-        nameCol = nc;
+        if (inTable && current.length > 0) tables.push({ label: currentLabel, images: current });
+        current = [];
+        nameCol = findColumnIndex(lower, ["team", "name", "club"]);
         imageCol = ic;
-        break;
+        inTable = true;
+        continue;
+      }
+
+      // Data row — first cell is a URL
+      if (inTable && cols[imageCol]?.startsWith("http")) {
+        const name = nameCol !== -1 ? (cols[nameCol]?.trim() ?? "") : "";
+        current.push({ name, imageUrl: cols[imageCol].trim() });
+        continue;
+      }
+
+      // Anything else is treated as a label row for the next table
+      const firstCell = cols.find((c) => c.length > 0) ?? "";
+      if (firstCell && !firstCell.startsWith("http")) {
+        if (inTable && current.length > 0) {
+          tables.push({ label: currentLabel, images: current });
+          current = [];
+          inTable = false;
+        }
+        currentLabel = firstCell;
       }
     }
-    if (headerIdx === -1 || imageCol === -1) return [];
 
-    const results: TeamImage[] = [];
-    for (const line of lines.slice(headerIdx + 1)) {
-      const cols = line.split(",");
-      const imageRaw = cols[imageCol]?.trim().replace(/^"|"$/g, "").trim();
-      if (!imageRaw || !imageRaw.startsWith("http")) continue;
-      const name = nameCol !== -1 ? (cols[nameCol]?.trim().replace(/^"|"$/g, "") ?? "") : "";
-      results.push({ name, imageUrl: imageRaw });
-    }
-    return results;
+    if (inTable && current.length > 0) tables.push({ label: currentLabel, images: current });
+    return tables;
   } catch {
     return [];
   }
 }
 
+async function fetchImages(url: string): Promise<TeamImage[]> {
+  const tables = await fetchAllImageTables(url);
+  return tables[0]?.images ?? [];
+}
+
 export async function GET() {
-  const [teams, premierLeague] = await Promise.all([
+  const [teams, emblemTables] = await Promise.all([
     fetchImages(TEAMS_CSV_URL),
-    fetchImages(EMBLEMS_CSV_URL),
+    fetchAllImageTables(EMBLEMS_CSV_URL),
   ]);
 
-  return NextResponse.json({ teams, premierLeague });
+  const premierLeague = emblemTables[0]?.images ?? [];
+  const laLiga = emblemTables[1]?.images ?? [];
+
+  return NextResponse.json({ teams, premierLeague, laLiga });
 }
